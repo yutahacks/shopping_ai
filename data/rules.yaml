@@ -1,0 +1,17 @@
+avoid:
+  - item_pattern: じゃがいも
+    reason: あまり好きではない
+    override_keyword: 肉じゃが  # このキーワードがあれば追加OK
+
+brands:
+  - product_pattern: シャンプー
+    brand: パンテーン
+    reason: いつもこれ
+
+price:
+  strategy: cheapest   # cheapest / value / premium
+  max_price_per_item: null
+
+notes: |
+  有機野菜を優先してください。
+  なるべく国産を選んでください。
