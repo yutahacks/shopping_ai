@@ -36,7 +36,7 @@ function RulesEditor({
   onSave: (rules: ShoppingRules) => Promise<ShoppingRules | null>;
 }) {
   const [draft, setDraft] = useState<ShoppingRules>(rules);
-  const [newAvoid, setNewAvoid] = useState<Omit<AvoidRule, "reason">>({ item_pattern: "", override_keyword: "" });
+  const [newAvoid, setNewAvoid] = useState<AvoidRule>({ item_pattern: "", override_keyword: "", reason: "" });
   const [newBrand, setNewBrand] = useState<BrandRule>({ product_pattern: "", brand: "", reason: "" });
 
   const handleSave = async () => {
@@ -48,7 +48,7 @@ function RulesEditor({
   const addAvoidRule = () => {
     if (!newAvoid.item_pattern.trim()) return;
     setDraft((d) => ({ ...d, avoid: [...d.avoid, { ...newAvoid }] }));
-    setNewAvoid({ item_pattern: "", override_keyword: "" });
+    setNewAvoid({ item_pattern: "", override_keyword: "", reason: "" });
   };
 
   const removeAvoidRule = (idx: number) => {
@@ -92,6 +92,11 @@ function RulesEditor({
                     「{rule.override_keyword}」の場合は除外しない
                   </span>
                 )}
+                {rule.reason && (
+                  <span className="text-xs text-muted-foreground">
+                    理由: {rule.reason}
+                  </span>
+                )}
                 <button
                   onClick={() => removeAvoidRule(idx)}
                   className="ml-auto text-destructive text-sm"
@@ -112,6 +117,12 @@ function RulesEditor({
               placeholder="例外キーワード（任意）"
               value={newAvoid.override_keyword || ""}
               onChange={(e) => setNewAvoid((p) => ({ ...p, override_keyword: e.target.value }))}
+              className="flex-1"
+            />
+            <Input
+              placeholder="理由（任意）"
+              value={newAvoid.reason || ""}
+              onChange={(e) => setNewAvoid((p) => ({ ...p, reason: e.target.value }))}
               className="flex-1"
             />
             <Button variant="outline" onClick={addAvoidRule}>追加</Button>

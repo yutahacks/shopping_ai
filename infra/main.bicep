@@ -7,9 +7,9 @@ param envName string = 'shopping-ai'
 @description('Home IP address for App Gateway allowlist (e.g. 1.2.3.4)')
 param homeIpAddress string
 
-@description('Anthropic API key')
+@description('OpenAI API key')
 @secure()
-param anthropicApiKey string
+param openaiApiKey string
 
 // Deploy VNet
 module vnet 'vnet.bicep' = {
@@ -27,7 +27,7 @@ module containerApps 'container-app.bicep' = {
     location: location
     envName: envName
     acaSubnetId: vnet.outputs.acaSubnetId
-    anthropicApiKey: anthropicApiKey
+    openaiApiKey: openaiApiKey
   }
 }
 

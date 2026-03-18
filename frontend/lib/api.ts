@@ -3,6 +3,7 @@ import type {
   CartExecutionResult,
   CookieEntry,
   CookieStatus,
+  HouseholdProfile,
   PlanRequest,
   ShoppingPlan,
   ShoppingRules,
@@ -78,6 +79,16 @@ export const api = {
       fetchJSON<ShoppingRules>("/api/rules/preferences", {
         method: "PATCH",
         body: JSON.stringify(price),
+      }),
+  },
+
+  profile: {
+    get: () => fetchJSON<HouseholdProfile>("/api/profile"),
+
+    update: (profile: HouseholdProfile) =>
+      fetchJSON<HouseholdProfile>("/api/profile", {
+        method: "PUT",
+        body: JSON.stringify(profile),
       }),
   },
 

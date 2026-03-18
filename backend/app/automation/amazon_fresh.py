@@ -7,11 +7,12 @@ It only searches for products and adds them to the cart.
 import re
 from dataclasses import dataclass
 
-from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
+from playwright.async_api import Page
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from app.automation.selectors import AmazonFreshSelectors as S
 from app.models.cart import CartItemResult
-from app.models.rules import BrandRule, PricePreference, ShoppingRules
+from app.models.rules import ShoppingRules
 
 AMAZON_FRESH_URL = "https://www.amazon.co.jp/alm/storefront?almBrandId=QW1hem9uIEZyZXNo"
 AMAZON_SEARCH_URL = "https://www.amazon.co.jp/s?k={query}&i=amazonfresh"
@@ -47,9 +48,7 @@ class AmazonFreshAutomator:
             pass
         return False
 
-    async def search_and_add_to_cart(
-        self, item_name: str, quantity: str
-    ) -> CartItemResult:
+    async def search_and_add_to_cart(self, item_name: str, quantity: str) -> CartItemResult:
         """Search for an item and add it to the cart.
 
         Args:
@@ -135,20 +134,20 @@ class AmazonFreshAutomator:
                 # Extract ASIN from data attribute
                 asin = await result.get_attribute("data-asin")
 
-                candidates.append(ProductCandidate(
-                    title=title,
-                    price=price,
-                    asin=asin,
-                    element_index=idx,
-                ))
+                candidates.append(
+                    ProductCandidate(
+                        title=title,
+                        price=price,
+                        asin=asin,
+                        element_index=idx,
+                    )
+                )
             except Exception:
                 continue
 
         return candidates
 
-    def _select_best_product(
-        self, candidates: list[ProductCandidate]
-    ) -> ProductCandidate | None:
+    def _select_best_product(self, candidates: list[ProductCandidate]) -> ProductCandidate | None:
         """Apply brand and price rules to select the best product."""
         if not candidates:
             return None
@@ -160,7 +159,8 @@ class AmazonFreshAutomator:
         # Filter by max price
         if self._rules.price.max_price_per_item is not None:
             pool = [
-                c for c in pool
+                c
+                for c in pool
                 if c.price is None or c.price <= self._rules.price.max_price_per_item
             ]
             if not pool:
@@ -169,9 +169,7 @@ class AmazonFreshAutomator:
         # Apply price strategy
         return self._apply_price_strategy(pool)
 
-    def _apply_brand_rules(
-        self, candidates: list[ProductCandidate]
-    ) -> list[ProductCandidate]:
+    def _apply_brand_rules(self, candidates: list[ProductCandidate]) -> list[ProductCandidate]:
         """Filter candidates by brand rules if applicable."""
         preferred: list[ProductCandidate] = []
         for rule in self._rules.brands:
@@ -180,9 +178,7 @@ class AmazonFreshAutomator:
                     preferred.append(candidate)
         return preferred
 
-    def _apply_price_strategy(
-        self, candidates: list[ProductCandidate]
-    ) -> ProductCandidate | None:
+    def _apply_price_strategy(self, candidates: list[ProductCandidate]) -> ProductCandidate | None:
         """Select based on price strategy."""
         priced = [c for c in candidates if c.price is not None]
         unpriced = [c for c in candidates if c.price is None]

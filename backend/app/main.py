@@ -1,5 +1,11 @@
+"""FastAPI application entry point for the Shopping AI backend.
+
+Configures the application with CORS middleware, API routes, and
+database initialization on startup.
+"""
+
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +16,14 @@ from app.storage.database import init_db
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Manages application startup and shutdown lifecycle.
+
+    Args:
+        app: The FastAPI application instance.
+
+    Yields:
+        None after database initialization is complete.
+    """
     await init_db()
     yield
 
@@ -34,4 +48,9 @@ app.include_router(api_router)
 
 @app.get("/health")
 async def health() -> dict:
+    """Returns a simple health check response.
+
+    Returns:
+        A dict with status "ok".
+    """
     return {"status": "ok"}

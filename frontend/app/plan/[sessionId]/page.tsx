@@ -29,6 +29,12 @@ export default function PlanPage() {
   }, [sessionId]);
 
   const handleExecute = async (dryRun = false) => {
+    if (!dryRun) {
+      const confirmed = window.confirm(
+        "カートに追加を開始しますか？この操作はAmazon Freshのカートに商品を追加します。"
+      );
+      if (!confirmed) return;
+    }
     await execute(sessionId, dryRun);
     if (!dryRun) {
       toast.success("カートへの追加を開始しました");

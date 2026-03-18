@@ -1,6 +1,12 @@
+"""Service for executing shopping cart operations.
+
+Orchestrates browser automation to search for products on Amazon Fresh
+and add them to the cart based on a shopping plan.
+"""
+
 import asyncio
 import uuid
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from app.automation.amazon_fresh import AmazonFreshAutomator
 from app.automation.browser import BrowserFactory
@@ -17,11 +23,24 @@ _executions: dict[str, CartExecutionResult] = {}
 
 
 class CartExecutorService:
+    """Executes shopping plans by automating Amazon Fresh cart additions.
+
+    Attributes:
+        _cookie_manager: Service for loading browser cookies.
+        _browser_factory: Factory for creating browser pages.
+    """
+
     def __init__(
         self,
         cookie_manager: CookieManagerService,
         browser_factory: BrowserFactory,
     ) -> None:
+        """Initializes the cart executor.
+
+        Args:
+            cookie_manager: Service for loading Amazon session cookies.
+            browser_factory: Factory for creating Playwright browser pages.
+        """
         self._cookie_manager = cookie_manager
         self._browser_factory = browser_factory
 
@@ -30,6 +49,15 @@ class CartExecutorService:
         plan: ShoppingPlan,
         dry_run: bool = False,
     ) -> CartExecutionResult:
+        """Starts a cart execution as a background task.
+
+        Args:
+            plan: The shopping plan containing items to add.
+            dry_run: If True, simulates execution without adding to cart.
+
+        Returns:
+            The initial execution result with a pending status.
+        """
         execution_id = str(uuid.uuid4())
         active_items = [item for item in plan.items if not item.excluded]
 
@@ -42,19 +70,30 @@ class CartExecutorService:
         _executions[execution_id] = result
 
         # Start background task
-        asyncio.create_task(
-            self._run_execution(execution_id, plan, dry_run)
-        )
+        asyncio.create_task(self._run_execution(execution_id, plan, dry_run))
 
         return result
 
     async def get_result(self, execution_id: str) -> CartExecutionResult | None:
+        """Retrieves the execution result by ID.
+
+        Args:
+            execution_id: Unique identifier of the execution.
+
+        Returns:
+            The execution result, or None if not found.
+        """
         return _executions.get(execution_id)
 
-    async def stream_status(
-        self, execution_id: str
-    ) -> AsyncGenerator[CartStatusEvent, None]:
-        """Poll execution status and yield SSE events."""
+    async def stream_status(self, execution_id: str) -> AsyncGenerator[CartStatusEvent, None]:
+        """Polls execution status and yields server-sent events.
+
+        Args:
+            execution_id: Unique identifier of the execution to stream.
+
+        Yields:
+            CartStatusEvent for each processed item and completion.
+        """
         result = _executions.get(execution_id)
         if not result:
             return
@@ -111,6 +150,7 @@ class CartExecutorService:
             active_items = [item for item in plan.items if not item.excluded]
 
             from app.services.rules_manager import RulesManagerService
+
             rules_manager = RulesManagerService()
             rules = await rules_manager.get_rules()
 
@@ -122,7 +162,9 @@ class CartExecutorService:
                     is_logged_in = await automator.check_login_status()
                     if not is_logged_in:
                         result.status = "failed"
-                        result.error_message = "Amazonにログインしていません。Cookieを更新してください。"
+                        result.error_message = (
+                            "Amazonにログインしていません。Cookieを更新してください。"
+                        )
                         return
 
                 for item in active_items:

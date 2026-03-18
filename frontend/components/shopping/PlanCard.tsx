@@ -14,6 +14,7 @@ export function PlanCard({ plan }: PlanCardProps) {
   const router = useRouter();
   const activeItems = plan.items.filter((i) => !i.excluded);
   const excludedItems = plan.items.filter((i) => i.excluded);
+  const estimatedTotal = activeItems.reduce((sum, item) => sum + (item.estimated_price ?? 0), 0);
 
   return (
     <Card>
@@ -42,6 +43,14 @@ export function PlanCard({ plan }: PlanCardProps) {
             </div>
           ))}
         </div>
+
+        {estimatedTotal > 0 && (
+          <div className="flex justify-end pt-2 border-t">
+            <span className="font-semibold text-base">
+              合計（概算）: ¥{estimatedTotal.toLocaleString()}
+            </span>
+          </div>
+        )}
 
         {excludedItems.length > 0 && (
           <div>

@@ -7,9 +7,9 @@ param envName string
 @description('ACA subnet ID')
 param acaSubnetId string
 
-@description('Anthropic API key')
+@description('OpenAI API key')
 @secure()
-param anthropicApiKey string
+param openaiApiKey string
 
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
   name: '${envName}-logs'
@@ -91,8 +91,8 @@ resource backendApp 'Microsoft.App/containerApps@2023-08-01-preview' = {
           image: 'ghcr.io/yourorg/shopping-ai-backend:latest'
           env: [
             {
-              name: 'ANTHROPIC_API_KEY'
-              value: anthropicApiKey
+              name: 'OPENAI_API_KEY'
+              value: openaiApiKey
             }
             {
               name: 'DATA_DIR'

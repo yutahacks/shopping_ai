@@ -10,14 +10,14 @@ export default function SettingsPage() {
       </div>
 
       <div className="grid gap-4">
-        <Link href="/settings/cookies">
+        <Link href="/settings/profile">
           <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
             <CardHeader>
-              <CardTitle className="text-base">🍪 Cookie管理</CardTitle>
+              <CardTitle className="text-base">家族プロファイル</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                Amazon セッションCookieのアップロードと管理
+                家族構成、アレルギー、食の好み、予算の設定
               </p>
             </CardContent>
           </Card>
@@ -26,11 +26,24 @@ export default function SettingsPage() {
         <Link href="/settings/rules">
           <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
             <CardHeader>
-              <CardTitle className="text-base">📋 ショッピングルール</CardTitle>
+              <CardTitle className="text-base">ショッピングルール</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
                 除外食材、ブランド設定、価格戦略の編集
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/settings/cookies">
+          <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
+            <CardHeader>
+              <CardTitle className="text-base">Cookie管理</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Amazon セッションCookieのアップロードと管理
               </p>
             </CardContent>
           </Card>

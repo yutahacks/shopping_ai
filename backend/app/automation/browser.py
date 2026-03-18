@@ -1,7 +1,13 @@
-from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+"""Browser lifecycle management using Playwright.
 
-from playwright.async_api import async_playwright, Browser, BrowserContext, Page
+Provides a factory for creating and configuring headless Chromium browser
+instances with Japanese locale settings and optional cookie injection.
+"""
+
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+
+from playwright.async_api import Browser, BrowserContext, Page, async_playwright
 
 from app.config import settings
 from app.models.settings import CookieEntry
@@ -15,6 +21,14 @@ class BrowserFactory:
         self,
         cookies: list[CookieEntry] | None = None,
     ) -> AsyncGenerator[BrowserContext, None]:
+        """Creates a browser context with Japanese locale settings.
+
+        Args:
+            cookies: Optional cookies to inject into the context.
+
+        Yields:
+            A configured BrowserContext instance.
+        """
         async with async_playwright() as playwright:
             browser: Browser = await playwright.chromium.launch(
                 headless=settings.browser_headless,
@@ -38,9 +52,7 @@ class BrowserFactory:
                 )
 
                 if cookies:
-                    await context.add_cookies(
-                        [self._to_playwright_cookie(c) for c in cookies]
-                    )
+                    await context.add_cookies([self._to_playwright_cookie(c) for c in cookies])
 
                 try:
                     yield context
@@ -54,6 +66,14 @@ class BrowserFactory:
         self,
         cookies: list[CookieEntry] | None = None,
     ) -> AsyncGenerator[Page, None]:
+        """Creates a single browser page with default timeout.
+
+        Args:
+            cookies: Optional cookies to inject into the browser context.
+
+        Yields:
+            A configured Page instance.
+        """
         async with self.create_context(cookies) as context:
             page: Page = await context.new_page()
             page.set_default_timeout(settings.browser_timeout_ms)

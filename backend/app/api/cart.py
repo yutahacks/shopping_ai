@@ -1,5 +1,4 @@
-import json
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -30,7 +29,10 @@ async def execute_cart(request: CartExecutionRequest) -> CartExecutionResult:
         if not cookie_status.is_valid:
             raise HTTPException(
                 status_code=400,
-                detail="有効なAmazon Cookieがありません。設定ページからCookieをアップロードしてください。",
+                detail=(
+                    "有効なAmazon Cookieがありません。"
+                    "設定ページからCookieをアップロードしてください。"
+                ),
             )
 
     result = await _executor.start_execution(plan, dry_run=request.dry_run)

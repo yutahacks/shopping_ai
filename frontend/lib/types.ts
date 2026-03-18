@@ -101,6 +101,21 @@ export interface ShoppingRules {
   notes?: string;
 }
 
+// Profile
+export interface FamilyMember {
+  name: string;
+  age_group: "adult" | "child" | "infant";
+  allergies: string[];
+  dislikes: string[];
+}
+
+export interface HouseholdProfile {
+  members: FamilyMember[];
+  food_preferences?: string;
+  weekly_budget?: number;
+  notes?: string;
+}
+
 // Settings
 export interface CookieEntry {
   name: string;

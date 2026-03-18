@@ -1,24 +1,33 @@
+"""API endpoints for shopping plan generation and session management."""
+
 from fastapi import APIRouter, HTTPException
 
 from app.models.shopping import PlanRequest, ShoppingPlan, ShoppingSession
-from app.services.cookie_manager import CookieManagerService
-from app.services.planner import ClaudePlannerService
+from app.services.planner import ShoppingPlannerService
+from app.services.profile_manager import ProfileManagerService
 from app.services.rules_manager import RulesManagerService
 from app.storage.history_repo import ShoppingHistoryRepository
 
 router = APIRouter(prefix="/api/shopping", tags=["shopping"])
 
-_planner = ClaudePlannerService()
+_planner = ShoppingPlannerService()
 _rules_manager = RulesManagerService()
-_cookie_manager = CookieManagerService()
+_profile_manager = ProfileManagerService()
 _history_repo = ShoppingHistoryRepository()
 
 
 @router.post("/plan", response_model=ShoppingPlan)
 async def create_shopping_plan(request: PlanRequest) -> ShoppingPlan:
-    """Generate a shopping plan from a natural language request."""
+    """Generate a shopping plan from a natural language request.
+
+    The plan considers the household profile, shopping rules, and
+    the user's natural language request to produce a structured
+    shopping list.
+    """
     rules = await _rules_manager.get_rules()
-    plan = await _planner.create_plan(request, rules)
+    profile = await _profile_manager.get_profile()
+    profile_section = profile.to_prompt_section()
+    plan = await _planner.create_plan(request, rules, profile_section=profile_section)
     await _history_repo.save_plan(plan)
     return plan
 

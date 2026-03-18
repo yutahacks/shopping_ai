@@ -1,7 +1,17 @@
-# Amazon Fresh Japan CSS selectors
-# Centralized here so DOM changes only require edits in one place.
+"""CSS selectors for Amazon Fresh Japan pages.
+
+Centralizes all DOM selectors so that changes to Amazon's HTML
+structure only require edits in one place.
+"""
+
 
 class AmazonFreshSelectors:
+    """CSS selectors for Amazon Fresh Japan page elements.
+
+    All attributes are class-level string constants representing CSS
+    selectors for search, product, cart, login, and pagination elements.
+    """
+
     # Search
     SEARCH_BOX = "#twotabsearchtextbox"
     SEARCH_BUTTON = "#nav-search-submit-button"

@@ -1,15 +1,27 @@
+"""SQLite database connection and schema initialization.
+
+Provides helpers to obtain async database connections and to create
+the required tables on application startup.
+"""
+
 import aiosqlite
-from pathlib import Path
+
 from app.config import settings
 
 
 async def get_db() -> aiosqlite.Connection:
+    """Opens and returns an async SQLite connection.
+
+    Returns:
+        An aiosqlite Connection with row factory set to Row.
+    """
     db = await aiosqlite.connect(str(settings.database_path))
     db.row_factory = aiosqlite.Row
     return db
 
 
 async def init_db() -> None:
+    """Creates database tables if they do not already exist."""
     settings.database_path.parent.mkdir(parents=True, exist_ok=True)
     async with aiosqlite.connect(str(settings.database_path)) as db:
         await db.execute("""
