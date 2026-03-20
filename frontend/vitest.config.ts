@@ -6,6 +6,11 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: [],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "text-summary"],
+      include: ["lib/**", "hooks/**", "components/**"],
+    },
   },
   resolve: {
     alias: {

@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Validate conventional commit format
+# Allowed prefixes: feat, fix, refactor, chore, docs, test, ci, perf, style, build, revert
+COMMIT_MSG_FILE="$1"
+COMMIT_MSG=$(head -1 "$COMMIT_MSG_FILE")
+
+# Skip merge commits
+if echo "$COMMIT_MSG" | grep -qE '^Merge '; then
+  exit 0
+fi
+
+PATTERN='^(feat|fix|refactor|chore|docs|test|ci|perf|style|build|revert)(\(.+\))?: .+'
+if ! echo "$COMMIT_MSG" | grep -qE "$PATTERN"; then
+  echo "ERROR: Commit message does not follow conventional commit format."
+  echo ""
+  echo "Expected: <type>(<scope>): <description>"
+  echo "  type: feat|fix|refactor|chore|docs|test|ci|perf|style|build|revert"
+  echo ""
+  echo "Examples:"
+  echo "  feat: add shopping cart API"
+  echo "  fix(planner): handle empty item list"
+  echo "  docs: update README with setup instructions"
+  echo ""
+  echo "Your message: $COMMIT_MSG"
+  exit 1
+fi
