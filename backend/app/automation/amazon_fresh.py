@@ -65,7 +65,12 @@ class AmazonFreshAutomator:
             CartItemResult with the outcome.
         """
         parsed_qty = self._parse_quantity(quantity)
-        logger.info("Processing item: %s (quantity: %s, parsed: %d)", item_name, quantity, parsed_qty)
+        logger.info(
+            "Processing item: %s (quantity: %s, parsed: %d)",
+            item_name,
+            quantity,
+            parsed_qty,
+        )
 
         for attempt in range(1, MAX_RETRIES + 1):
             try:
@@ -74,12 +79,17 @@ class AmazonFreshAutomator:
                     return result
                 logger.warning(
                     "Attempt %d/%d failed for '%s': %s. Retrying...",
-                    attempt, MAX_RETRIES, item_name, result.error_message,
+                    attempt,
+                    MAX_RETRIES,
+                    item_name,
+                    result.error_message,
                 )
             except PlaywrightTimeoutError:
                 logger.warning(
                     "Attempt %d/%d timed out for '%s'",
-                    attempt, MAX_RETRIES, item_name,
+                    attempt,
+                    MAX_RETRIES,
+                    item_name,
                 )
                 if attempt == MAX_RETRIES:
                     return CartItemResult(
@@ -90,7 +100,9 @@ class AmazonFreshAutomator:
             except Exception as e:
                 logger.exception(
                     "Attempt %d/%d unexpected error for '%s'",
-                    attempt, MAX_RETRIES, item_name,
+                    attempt,
+                    MAX_RETRIES,
+                    item_name,
                 )
                 if attempt == MAX_RETRIES:
                     return CartItemResult(

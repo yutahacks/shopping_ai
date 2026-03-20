@@ -2,11 +2,10 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { CartExecutionResult, CartStatusEvent } from "@/lib/types";
+import type { CartExecutionResult } from "@/lib/types";
 
 interface ExecutionStatusProps {
   result: CartExecutionResult | null;
-  events: CartStatusEvent[];
   loading: boolean;
 }
 
@@ -20,7 +19,7 @@ const statusBadge = (status: string) => {
   }
 };
 
-export function ExecutionStatus({ result, events, loading }: ExecutionStatusProps) {
+export function ExecutionStatus({ result, loading }: ExecutionStatusProps) {
   if (!result) return null;
 
   const progress = result.total_items > 0

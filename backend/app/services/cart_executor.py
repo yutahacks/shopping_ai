@@ -79,7 +79,10 @@ class CartExecutorService:
         _active_executions[execution_id] = result
         logger.info(
             "Starting cart execution %s for session %s (%d items, dry_run=%s)",
-            execution_id, plan.session_id, len(active_items), dry_run,
+            execution_id,
+            plan.session_id,
+            len(active_items),
+            dry_run,
         )
 
         # Start background task
@@ -211,7 +214,9 @@ class CartExecutorService:
 
                     logger.info(
                         "Item '%s': %s (execution %s)",
-                        item_result.item_name, item_result.status, execution_id,
+                        item_result.item_name,
+                        item_result.status,
+                        execution_id,
                     )
 
                     # Small delay between items to avoid rate limiting
@@ -221,7 +226,10 @@ class CartExecutorService:
             result.status = "completed"
             logger.info(
                 "Cart execution %s completed: %d added, %d failed, %d skipped",
-                execution_id, result.added_count, result.failed_count, result.skipped_count,
+                execution_id,
+                result.added_count,
+                result.failed_count,
+                result.skipped_count,
             )
 
         except Exception as e:

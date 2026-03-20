@@ -121,21 +121,44 @@ class TestSelectBestProduct:
     def test_brand_rule_category_match(self, brand_rules: ShoppingRules) -> None:
         """Brand rules only apply when item name matches the product pattern."""
         candidates = [
-            ProductCandidate(title="パンテーン シャンプー 400ml", price=500, asin="A1", element_index=0),
-            ProductCandidate(title="いち髪 シャンプー 380ml", price=300, asin="A2", element_index=1),
+            ProductCandidate(
+                title="パンテーン シャンプー 400ml",
+                price=500,
+                asin="A1",
+                element_index=0,
+            ),
+            ProductCandidate(
+                title="いち髪 シャンプー 380ml",
+                price=300,
+                asin="A2",
+                element_index=1,
+            ),
         ]
         automator = AmazonFreshAutomator.__new__(AmazonFreshAutomator)
         automator._rules = brand_rules
         # When searching for "シャンプー", brand rule should match
-        result = automator._select_best_product(candidates, item_name="シャンプー")
+        result = automator._select_best_product(
+            candidates,
+            item_name="シャンプー",
+        )
         assert result is not None
         assert "パンテーン" in result.title
 
     def test_brand_rule_no_category_match(self, brand_rules: ShoppingRules) -> None:
         """Brand rules don't apply when item name doesn't match product pattern."""
         candidates = [
-            ProductCandidate(title="パンテーン シャンプー 400ml", price=500, asin="A1", element_index=0),
-            ProductCandidate(title="いち髪 シャンプー 380ml", price=300, asin="A2", element_index=1),
+            ProductCandidate(
+                title="パンテーン シャンプー 400ml",
+                price=500,
+                asin="A1",
+                element_index=0,
+            ),
+            ProductCandidate(
+                title="いち髪 シャンプー 380ml",
+                price=300,
+                asin="A2",
+                element_index=1,
+            ),
         ]
         automator = AmazonFreshAutomator.__new__(AmazonFreshAutomator)
         automator._rules = brand_rules

@@ -106,8 +106,7 @@ class ShoppingPlannerService:
             history_block = f"## 過去の購入履歴\n\n{history_section}"
 
         system_prompt = (
-            SYSTEM_PROMPT_TEMPLATE
-            .replace("{rules_yaml}", rules_yaml)
+            SYSTEM_PROMPT_TEMPLATE.replace("{rules_yaml}", rules_yaml)
             .replace("{profile_section}", profile_section)
             .replace("{history_section}", history_block)
         )
@@ -124,7 +123,11 @@ class ShoppingPlannerService:
         if request.context:
             user_message += f"\n\n追加情報: {request.context}"
 
-        logger.info("Generating plan for request: '%s' (model: %s)", request.request, settings.openai_model)
+        logger.info(
+            "Generating plan for request: '%s' (model: %s)",
+            request.request,
+            settings.openai_model,
+        )
         result = await Runner.run(agent, user_message)
         output: PlanOutput = result.final_output
         logger.info(

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -8,20 +8,25 @@ import { ShoppingInput } from "@/components/shopping/ShoppingInput";
 import { PlanCard } from "@/components/shopping/PlanCard";
 import { useShoppingPlan } from "@/hooks/useShoppingPlan";
 
+function getSetupCompleted() {
+  return localStorage.getItem("setup_completed") !== null;
+}
+
+function subscribeToStorage(callback: () => void) {
+  window.addEventListener("storage", callback);
+  return () => window.removeEventListener("storage", callback);
+}
+
 export default function HomePage() {
   const router = useRouter();
+  const ready = useSyncExternalStore(subscribeToStorage, getSetupCompleted, () => false);
   const { plan, loading, error, createPlan } = useShoppingPlan();
-  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Check if setup has been completed
-    const setupDone = localStorage.getItem("setup_completed");
-    if (!setupDone) {
+    if (!ready) {
       router.replace("/setup");
-      return;
     }
-    setReady(true);
-  }, [router]);
+  }, [ready, router]);
 
   const handleSubmit = async (request: string, context?: string) => {
     const result = await createPlan({ request, context });

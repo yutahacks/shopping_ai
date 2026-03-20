@@ -1,9 +1,9 @@
 """Unit tests for CartExecutorService — dry run and DB persistence."""
 
 import asyncio
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 
 from app.models.shopping import ShoppingItem, ShoppingPlan
 from app.services.cart_executor import CartExecutorService, _active_executions
@@ -16,6 +16,7 @@ async def history_repo(tmp_path, monkeypatch):
     """Repository with test database."""
     db_path = tmp_path / "test.db"
     from app.config import settings
+
     monkeypatch.setattr(settings, "database_path", db_path)
     await init_db()
     return ShoppingHistoryRepository()
@@ -29,7 +30,12 @@ def sample_plan() -> ShoppingPlan:
         items=[
             ShoppingItem(name="牛肉", quantity="300g", excluded=False),
             ShoppingItem(name="玉ねぎ", quantity="2個", excluded=False),
-            ShoppingItem(name="じゃがいも", quantity="3個", excluded=True, exclusion_reason="avoid"),
+            ShoppingItem(
+                name="じゃがいも",
+                quantity="3個",
+                excluded=True,
+                exclusion_reason="avoid",
+            ),
         ],
         reasoning="テスト",
     )

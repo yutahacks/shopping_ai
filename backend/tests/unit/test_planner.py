@@ -1,12 +1,12 @@
 """Unit tests for ShoppingPlannerService — mocks the OpenAI Agents SDK."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from app.models.rules import AvoidRule, ShoppingRules
 from app.models.shopping import PlanRequest, ShoppingItem
 from app.services.planner import PlanOutput, ShoppingPlannerService
-
 
 MOCK_PLAN_OUTPUT = PlanOutput(
     items=[
@@ -39,9 +39,7 @@ async def test_create_plan_applies_rules(planner: ShoppingPlannerService) -> Non
     mock_result.final_output = MOCK_PLAN_OUTPUT
 
     with patch("app.services.planner.Runner.run", new_callable=AsyncMock, return_value=mock_result):
-        rules = ShoppingRules(
-            avoid=[AvoidRule(item_pattern="じゃがいも", reason="嫌い")]
-        )
+        rules = ShoppingRules(avoid=[AvoidRule(item_pattern="じゃがいも", reason="嫌い")])
         request = PlanRequest(request="カレーを4人分作りたい")
         plan = await planner.create_plan(request, rules)
 
@@ -58,7 +56,11 @@ async def test_create_plan_with_context(planner: ShoppingPlannerService) -> None
     mock_result = MagicMock()
     mock_result.final_output = MOCK_PLAN_OUTPUT
 
-    with patch("app.services.planner.Runner.run", new_callable=AsyncMock, return_value=mock_result) as mock_run:
+    with patch(
+        "app.services.planner.Runner.run",
+        new_callable=AsyncMock,
+        return_value=mock_result,
+    ) as mock_run:
         rules = ShoppingRules()
         request = PlanRequest(request="カレー", context="予算2000円以内")
         await planner.create_plan(request, rules)
@@ -74,7 +76,11 @@ async def test_create_plan_with_profile(planner: ShoppingPlannerService) -> None
     mock_result = MagicMock()
     mock_result.final_output = MOCK_PLAN_OUTPUT
 
-    with patch("app.services.planner.Runner.run", new_callable=AsyncMock, return_value=mock_result) as mock_run:
+    with patch(
+        "app.services.planner.Runner.run",
+        new_callable=AsyncMock,
+        return_value=mock_result,
+    ) as mock_run:
         rules = ShoppingRules()
         request = PlanRequest(request="カレー")
         profile_text = "家族構成: 大人2名、子供1名"

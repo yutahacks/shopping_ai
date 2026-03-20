@@ -13,6 +13,7 @@ async def repo(tmp_path, monkeypatch):
     """Create a repository pointing to a temporary test database."""
     db_path = tmp_path / "test.db"
     from app.config import settings
+
     monkeypatch.setattr(settings, "database_path", db_path)
     await init_db()
     return ShoppingHistoryRepository()
@@ -40,7 +41,10 @@ def sample_plan() -> ShoppingPlan:
 
 
 @pytest.mark.asyncio
-async def test_save_and_get_plan(repo: ShoppingHistoryRepository, sample_plan: ShoppingPlan) -> None:
+async def test_save_and_get_plan(
+    repo: ShoppingHistoryRepository,
+    sample_plan: ShoppingPlan,
+) -> None:
     """Plans can be saved and retrieved."""
     await repo.save_plan(sample_plan)
     loaded = await repo.get_plan("test-session-1")
@@ -85,7 +89,10 @@ async def test_mark_executed(repo: ShoppingHistoryRepository, sample_plan: Shopp
 
 
 @pytest.mark.asyncio
-async def test_update_plan_items(repo: ShoppingHistoryRepository, sample_plan: ShoppingPlan) -> None:
+async def test_update_plan_items(
+    repo: ShoppingHistoryRepository,
+    sample_plan: ShoppingPlan,
+) -> None:
     """Plan items can be updated."""
     await repo.save_plan(sample_plan)
 

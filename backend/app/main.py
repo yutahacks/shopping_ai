@@ -81,7 +81,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Starting Shopping AI Backend v%s", app.version)
     logger.info("OpenAI model: %s", settings.openai_model)
     logger.info("Data directory: %s", settings.data_dir)
-    logger.info("Auth: %s", "enabled (API_SECRET_KEY set)" if settings.api_secret_key else "disabled")
+    auth_status = "enabled (API_SECRET_KEY set)" if settings.api_secret_key else "disabled"
+    logger.info("Auth: %s", auth_status)
     _copy_defaults()
     await init_db()
     logger.info("Database initialized")

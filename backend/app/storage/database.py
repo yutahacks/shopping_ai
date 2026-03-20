@@ -5,8 +5,8 @@ the required tables on application startup.
 """
 
 import logging
-from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 import aiosqlite
 

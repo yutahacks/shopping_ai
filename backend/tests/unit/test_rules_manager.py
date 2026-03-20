@@ -1,5 +1,7 @@
-import pytest
 from pathlib import Path
+
+import pytest
+
 from app.models.rules import AvoidRule, BrandRule, PricePreference, ShoppingRules
 from app.services.rules_manager import RulesManagerService
 

@@ -107,7 +107,11 @@ class ShoppingHistoryRepository:
             )
             await db.commit()
 
-    async def update_plan_items(self, session_id: str, items: list[ShoppingItem]) -> ShoppingPlan | None:
+    async def update_plan_items(
+        self,
+        session_id: str,
+        items: list[ShoppingItem],
+    ) -> ShoppingPlan | None:
         """Updates the items in an existing shopping plan.
 
         Args:
@@ -191,7 +195,4 @@ class ShoppingHistoryRepository:
                 (session_id,),
             )
             rows = await cursor.fetchall()
-            return [
-                CartExecutionResult.model_validate_json(row["result_json"])
-                for row in rows
-            ]
+            return [CartExecutionResult.model_validate_json(row["result_json"]) for row in rows]

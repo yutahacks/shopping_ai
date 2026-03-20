@@ -23,7 +23,7 @@ export default function PlanPage() {
   const [editing, setEditing] = useState(false);
   const [editItems, setEditItems] = useState<ShoppingItem[]>([]);
   const [saving, setSaving] = useState(false);
-  const { result, events, loading: executing, error, execute } = useCartExecution();
+  const { result, loading: executing, error, execute } = useCartExecution();
 
   useEffect(() => {
     api.shopping.getSession(sessionId)
@@ -250,7 +250,7 @@ export default function PlanPage() {
         ※ このアプリはカートへの追加のみ行います。購入はAmazon Freshのページで行ってください。
       </p>
 
-      <ExecutionStatus result={result} events={events} loading={executing} />
+      <ExecutionStatus result={result} loading={executing} />
     </main>
   );
 }

@@ -1,9 +1,8 @@
 """Unit tests for ProfileManagerService."""
 
-import json
-import pytest
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+
+import pytest
 
 from app.models.profile import FamilyMember, HouseholdProfile
 from app.services.profile_manager import ProfileManagerService
@@ -31,9 +30,7 @@ async def test_get_profile_returns_defaults_when_no_file(manager: ProfileManager
 
 
 @pytest.mark.asyncio
-async def test_save_and_get_profile(
-    manager: ProfileManagerService, tmp_profile_path: Path
-) -> None:
+async def test_save_and_get_profile(manager: ProfileManagerService, tmp_profile_path: Path) -> None:
     """Saving and loading a profile round-trips correctly."""
     profile = HouseholdProfile(
         members=[

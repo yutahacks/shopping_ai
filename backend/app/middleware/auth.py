@@ -41,7 +41,10 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
             logger.warning("Missing or invalid Authorization header from %s", request.client)
             return JSONResponse(
                 status_code=401,
-                content={"detail": "認証が必要です。Authorization: Bearer <token> ヘッダーを含めてください。"},
+                content={
+                    "detail": "認証が必要です。"
+                    "Authorization: Bearer <token> ヘッダーを含めてください。"
+                },
             )
 
         token = auth_header.removeprefix("Bearer ").strip()
