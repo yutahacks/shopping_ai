@@ -205,6 +205,10 @@ function ProfileStep({ onNext, onBack }: { onNext: () => void; onBack: () => voi
   };
 
   const handleSave = async () => {
+    if (weeklyBudget && (Number(weeklyBudget) < 0 || !Number.isInteger(Number(weeklyBudget)))) {
+      toast.error("週間予算は0以上の整数で入力してください");
+      return;
+    }
     setSaving(true);
     try {
       const profile: HouseholdProfile = {
@@ -220,6 +224,10 @@ function ProfileStep({ onNext, onBack }: { onNext: () => void; onBack: () => voi
     } finally {
       setSaving(false);
     }
+  };
+
+  const preventSubmit = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") e.preventDefault();
   };
 
   return (
@@ -249,7 +257,12 @@ function ProfileStep({ onNext, onBack }: { onNext: () => void; onBack: () => voi
             placeholder="名前"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addMember())}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addMember();
+              }
+            }}
             className="flex-1"
           />
           <select
@@ -261,7 +274,7 @@ function ProfileStep({ onNext, onBack }: { onNext: () => void; onBack: () => voi
             <option value="child">子供</option>
             <option value="infant">乳幼児</option>
           </select>
-          <Button variant="outline" onClick={addMember}>追加</Button>
+          <Button type="button" variant="outline" onClick={addMember}>追加</Button>
         </div>
 
         <div className="space-y-2">
@@ -270,6 +283,7 @@ function ProfileStep({ onNext, onBack }: { onNext: () => void; onBack: () => voi
             placeholder="例：和食中心、洋食多め"
             value={foodPreferences}
             onChange={(e) => setFoodPreferences(e.target.value)}
+            onKeyDown={preventSubmit}
           />
         </div>
 
@@ -279,14 +293,22 @@ function ProfileStep({ onNext, onBack }: { onNext: () => void; onBack: () => voi
             type="number"
             placeholder="円"
             value={weeklyBudget}
-            onChange={(e) => setWeeklyBudget(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === "" || (/^\d+$/.test(v) && Number(v) >= 0)) {
+                setWeeklyBudget(v);
+              }
+            }}
+            onKeyDown={preventSubmit}
+            min={0}
+            step={1}
             className="w-40"
           />
         </div>
 
         <div className="flex gap-3">
-          <Button variant="outline" onClick={onBack}>← 戻る</Button>
-          <Button onClick={handleSave} disabled={saving} className="flex-1">
+          <Button type="button" variant="outline" onClick={onBack}>← 戻る</Button>
+          <Button type="button" onClick={handleSave} disabled={saving} className="flex-1">
             {saving ? "保存中..." : members.length > 0 ? "保存して次へ →" : "スキップ →"}
           </Button>
         </div>
