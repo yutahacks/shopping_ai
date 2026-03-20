@@ -25,3 +25,6 @@ data/
 .idea/
 .vscode/
 *.swp
+
+# Claude Code (personal settings — .claude/settings.json is tracked)
+.claude/settings.local.json
