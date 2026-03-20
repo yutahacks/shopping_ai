@@ -20,7 +20,10 @@ class Settings(BaseSettings):
         browser_timeout_ms: Playwright navigation timeout in milliseconds.
     """
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=("../.env", ".env"),
+        env_file_encoding="utf-8",
+    )
 
     openai_api_key: str = ""
     data_dir: Path = Path("./data")

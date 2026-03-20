@@ -1,29 +1,50 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { ShoppingInput } from "@/components/shopping/ShoppingInput";
 import { PlanCard } from "@/components/shopping/PlanCard";
 import { useShoppingPlan } from "@/hooks/useShoppingPlan";
-
-function getSetupCompleted() {
-  return localStorage.getItem("setup_completed") !== null;
-}
-
-function subscribeToStorage(callback: () => void) {
-  window.addEventListener("storage", callback);
-  return () => window.removeEventListener("storage", callback);
-}
+import { api } from "@/lib/api";
 
 export default function HomePage() {
   const router = useRouter();
-  const ready = useSyncExternalStore(subscribeToStorage, getSetupCompleted, () => false);
+  const [ready, setReady] = useState<boolean | null>(null);
   const { plan, loading, error, createPlan } = useShoppingPlan();
 
   useEffect(() => {
-    if (!ready) {
+    // Check if setup is done: profile exists OR cookies are valid
+    async function checkSetup() {
+      // If already marked in localStorage, skip API calls
+      if (localStorage.getItem("setup_completed")) {
+        setReady(true);
+        return;
+      }
+      try {
+        const [profile, cookieStatus] = await Promise.all([
+          api.profile.get(),
+          api.settings.getCookieStatus(),
+        ]);
+        const hasProfile = profile.members.length > 0;
+        const hasCookies = cookieStatus.is_valid;
+        if (hasProfile || hasCookies) {
+          localStorage.setItem("setup_completed", "true");
+          setReady(true);
+        } else {
+          setReady(false);
+        }
+      } catch {
+        // API not available — skip setup redirect
+        setReady(true);
+      }
+    }
+    checkSetup();
+  }, []);
+
+  useEffect(() => {
+    if (ready === false) {
       router.replace("/setup");
     }
   }, [ready, router]);
