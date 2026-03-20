@@ -33,9 +33,24 @@ shopping_ai/
 │   ├── components/    # React components
 │   ├── hooks/         # Custom React hooks
 │   └── lib/           # API client, types, utils
+├── scripts/           # Development scripts
+│   ├── hooks/         # Git hooks (pre-commit, commit-msg)
+│   └── setup-hooks.sh # Hook installer for new contributors
 ├── config/            # Default config templates (rules.yaml.default, profile.json.default)
 ├── data/              # Runtime data (gitignored — auto-populated from config/)
+├── .claude/           # Claude Code settings (hooks for auto-linting)
 └── infra/             # Azure Bicep IaC
+```
+
+## Initial Setup
+
+```bash
+# 1. Clone and install dependencies
+cd backend && uv sync --extra dev
+cd ../frontend && npm install
+
+# 2. Install git hooks (required for all contributors)
+bash scripts/setup-hooks.sh
 ```
 
 ## Development Commands
@@ -43,14 +58,14 @@ shopping_ai/
 ### Backend
 ```bash
 cd backend
-uv sync                          # Install dependencies
-uv sync --extra dev              # Install with dev dependencies
-uv run uvicorn app.main:app --reload --port 8000  # Start dev server
-uv run pytest                    # Run tests
-uv run pytest -m "not integration"  # Skip integration tests
-uv run ruff check .              # Lint
-uv run ruff format .             # Format
-uv run mypy app/                 # Type check
+uv sync --extra dev                              # Install with dev dependencies
+uv run uvicorn app.main:app --reload --port 8000 # Start dev server
+uv run pytest                                    # Run all tests
+uv run pytest -m "not integration"               # Unit tests only
+uv run pytest --cov=app --cov-report=term-missing # Tests with coverage
+uv run ruff check .                              # Lint
+uv run ruff format .                             # Format
+uv run mypy app/                                 # Type check (strict + pydantic plugin)
 ```
 
 ### Frontend
@@ -60,6 +75,8 @@ npm install                      # Install dependencies
 npm run dev                      # Start dev server (port 3000)
 npm run build                    # Production build
 npm run lint                     # ESLint
+npm run typecheck                # TypeScript strict check (tsc --noEmit)
+npm run test                     # Run tests (vitest)
 ```
 
 ### Docker
@@ -68,15 +85,48 @@ docker compose up --build        # Start full stack
 docker compose up backend        # Backend only
 ```
 
+## Quality Gates
+
+### Pre-commit Hook (7 checks, auto-runs on `git commit`)
+| # | Check | Tool | Layer |
+|---|---|---|---|
+| 1 | Lint | `ruff check` | Backend |
+| 2 | Format | `ruff format --check` | Backend |
+| 3 | Type check | `mypy app/` (strict) | Backend |
+| 4 | Unit tests | `pytest -m "not integration"` | Backend |
+| 5 | Lint | `eslint` | Frontend |
+| 6 | Type check | `tsc --noEmit` | Frontend |
+| 7 | Unit tests | `vitest run` | Frontend |
+
+### Commit-msg Hook
+Enforces [Conventional Commits](https://www.conventionalcommits.org/):
+```
+<type>(<scope>): <description>
+```
+Allowed types: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `ci`, `perf`, `style`, `build`, `revert`
+
+### CI (GitHub Actions)
+Runs on push to `main` and all PRs. Mirrors pre-commit checks plus `npm run build` and coverage reporting.
+
+### Claude Code Hooks (`.claude/settings.json`)
+- **PostToolUse (Edit/Write)**: Auto-runs `ruff check --fix` + `ruff format` on Python files
+- **PostToolUse (Edit/Write)**: Auto-runs `eslint` on TypeScript/TSX files
+
+### Branch Protection (main)
+- Direct push to main is blocked
+- CI status checks must pass before merge
+- Force push is disabled
+
 ## Conventions
 
 ### Python (Backend)
 - Google-style docstrings on all classes and public methods
-- Pydantic v2 models for all data structures
+- Pydantic v2 models for all data structures (mypy plugin: `pydantic.mypy`)
 - Async-first: all I/O operations are async
 - Type annotations on all function signatures
 - ruff for linting & formatting, mypy strict mode for type checking
-- Tests: pytest + pytest-asyncio, `tests/unit/` and `tests/integration/`
+- Tests: pytest + pytest-asyncio + pytest-cov, `tests/unit/` and `tests/integration/`
+- Coverage: `pytest-cov` with `--cov=app`, threshold enforced in CI
 
 ### TypeScript (Frontend)
 - Strict TypeScript — no `any` types
@@ -84,6 +134,8 @@ docker compose up backend        # Backend only
 - Custom hooks for API state management (`hooks/use*.ts`)
 - shadcn/ui for UI components
 - Japanese UI text throughout
+- Tests: vitest + @testing-library/react, `__tests__/` directory
+- Coverage: `@vitest/coverage-v8` with v8 provider
 
 ### Git
 - Issue-driven development: create issue first, then branch `feature/{issue-number}-short-description`
