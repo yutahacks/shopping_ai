@@ -87,8 +87,10 @@ docker compose up backend        # Backend only
 
 ### Git
 - Issue-driven development: create issue first, then branch `feature/{issue-number}-short-description`
-- Pre-commit hooks enforce linting and type checking
-- Commit messages in English, imperative mood
+- Pre-commit hooks enforce: ruff check, ruff format, mypy, pytest, eslint, tsc, vitest (7 checks)
+- Conventional commits enforced by commit-msg hook: `feat:`, `fix:`, `refactor:`, `chore:`, `docs:`, `test:`, `ci:`, `perf:`, `style:`, `build:`, `revert:`
+- Branch protection: main requires CI to pass, no force push
+- New contributors: run `bash scripts/setup-hooks.sh` after cloning
 
 ### API Design
 - RESTful endpoints under `/api/`

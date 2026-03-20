@@ -28,3 +28,4 @@ data/
 
 # Claude Code (personal settings — .claude/settings.json is tracked)
 .claude/settings.local.json
+.coverage

@@ -48,6 +48,14 @@ markers = [
     "integration: requires real Amazon cookies and network access",
 ]
 
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/main.py"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 40
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
@@ -58,3 +66,8 @@ plugins = ["pydantic.mypy"]
 init_forbid_extra = true
 init_typed = true
 warn_required_dynamic_aliases = true
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=7.0.0",
+]

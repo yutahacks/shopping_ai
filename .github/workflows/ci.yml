@@ -39,11 +39,11 @@ jobs:
       - name: Type check (mypy)
         run: uv run mypy app/
 
-      - name: Run tests
-        run: uv run pytest -m "not integration" -v
+      - name: Run tests with coverage
+        run: uv run pytest -m "not integration" -v --cov=app --cov-report=term-missing
 
   frontend:
-    name: Frontend (lint, build, test)
+    name: Frontend (lint, typecheck, build, test)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -65,8 +65,11 @@ jobs:
       - name: Lint (ESLint)
         run: npm run lint
 
+      - name: Type check (tsc)
+        run: npm run typecheck
+
       - name: Build
         run: npm run build
 
       - name: Run tests
-        run: npx vitest run
+        run: npm run test
