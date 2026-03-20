@@ -157,35 +157,55 @@ class CookieManagerService:
                 await page.goto(AMAZON_LOGIN_URL, wait_until="domcontentloaded")
                 logger.info("Opened Amazon login page, waiting for user to log in...")
 
-                # Wait until the user completes login and lands on Amazon top
-                # Login is detected when the URL no longer contains '/ap/signin'
-                # and the nav shows an account name (not "ログイン")
-                try:
-                    await page.wait_for_url(
-                        lambda url: "/ap/signin" not in url and "/ap/mfa" not in url,
-                        timeout=LOGIN_TIMEOUT_SEC * 1000,
-                    )
-                except Exception:
+                # Poll for login completion: wait until user lands on a
+                # non-auth page (not /ap/signin, /ap/mfa, /ap/cvf, etc.)
+                import time
+
+                deadline = time.monotonic() + LOGIN_TIMEOUT_SEC
+                logged_in = False
+
+                while time.monotonic() < deadline:
+                    await page.wait_for_timeout(2000)
+                    current_url = page.url
+                    logger.debug("Current URL: %s", current_url)
+
+                    # Still on auth pages — keep waiting
+                    if "/ap/" in current_url:
+                        continue
+
+                    # Landed on a non-auth Amazon page — check nav for login
+                    try:
+                        nav_text = await page.text_content(
+                            "#nav-link-accountList",
+                            timeout=3000,
+                        )
+                        if nav_text and "ログイン" not in nav_text:
+                            logger.info("Login confirmed via nav text")
+                            logged_in = True
+                            break
+                    except Exception:
+                        # Nav element not found — might be a different page layout
+                        # Check if we have Amazon cookies as a fallback
+                        cookies_check = await context.cookies()
+                        amazon_cookies = [
+                            c for c in cookies_check if ".amazon.co.jp" in c["domain"]
+                        ]
+                        if len(amazon_cookies) >= 3:
+                            logger.info(
+                                "Login inferred from %d Amazon cookies",
+                                len(amazon_cookies),
+                            )
+                            logged_in = True
+                            break
+
+                if not logged_in:
                     raise TimeoutError(
                         f"ログインが{LOGIN_TIMEOUT_SEC}秒以内に完了しませんでした。"
                         "もう一度お試しください。"
                     )
 
-                # Give a moment for cookies to settle after redirect
+                # Give a moment for cookies to settle after login
                 await page.wait_for_timeout(2000)
-
-                # Verify login by checking the account nav text
-                try:
-                    nav_text = await page.text_content("#nav-link-accountList", timeout=5000)
-                    if nav_text and "ログイン" in nav_text:
-                        raise RuntimeError(
-                            "ログインが完了していないようです。もう一度お試しください。"
-                        )
-                except Exception as e:
-                    if isinstance(e, RuntimeError):
-                        raise
-                    # If we can't check the nav, proceed anyway — cookies might still be valid
-                    logger.warning("Could not verify login status via nav: %s", e)
 
                 # Capture all cookies from the browser context
                 raw_cookies = await context.cookies()

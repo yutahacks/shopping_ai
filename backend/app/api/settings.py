@@ -39,11 +39,11 @@ async def browser_login() -> CookieStatus:
         raise HTTPException(status_code=408, detail=str(e))
     except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception:
+    except Exception as e:
         logger.exception("Browser login failed")
         raise HTTPException(
             status_code=500,
-            detail="ブラウザログインに失敗しました。もう一度お試しください。",
+            detail=f"ブラウザログインに失敗しました: {e}",
         )
 
 

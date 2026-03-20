@@ -150,6 +150,7 @@ export const api = {
     browserLogin: () =>
       fetchJSON<CookieStatus>("/api/settings/cookies/login", {
         method: "POST",
+        signal: AbortSignal.timeout(200000), // 200s — user logs in manually
       }),
 
     deleteCookies: () =>
