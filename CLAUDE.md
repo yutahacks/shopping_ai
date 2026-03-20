@@ -9,9 +9,9 @@ Amazon Fresh Japan Shopping Assistant: 自然言語 → AI買い物リスト生�
 | Layer | Technology |
 |---|---|
 | Backend | Python 3.12+, FastAPI, Pydantic v2, Playwright |
-| AI | OpenAI API (GPT-4o) |
+| AI | OpenAI API (gpt-5.4-mini) via Agents SDK |
 | Package manager | UV |
-| Frontend | Next.js 15 (App Router), TypeScript, Tailwind CSS 4, shadcn/ui |
+| Frontend | Next.js 16 (App Router), TypeScript, Tailwind CSS 4, shadcn/ui |
 | Storage | YAML (rules), JSON (cookies/profile), SQLite (history) |
 | Container | Docker, docker-compose |
 | Cloud | Azure Container Apps + App Gateway WAF |
@@ -33,7 +33,8 @@ shopping_ai/
 │   ├── components/    # React components
 │   ├── hooks/         # Custom React hooks
 │   └── lib/           # API client, types, utils
-├── data/              # Runtime data (rules.yaml, cookies.json, profile.json)
+├── config/            # Default config templates (rules.yaml.default, profile.json.default)
+├── data/              # Runtime data (gitignored — auto-populated from config/)
 └── infra/             # Azure Bicep IaC
 ```
 
@@ -105,6 +106,13 @@ docker compose up backend        # Backend only
 | `RULES_PATH` | Shopping rules YAML path |
 | `COOKIES_PATH` | Amazon cookies JSON path |
 | `BROWSER_HEADLESS` | Playwright headless mode (default: `true`) |
+| `CONFIG_DIR` | Config templates directory (default: `/config`) |
+| `LOG_LEVEL` | Logging level (default: `INFO`) |
+| `API_SECRET_KEY` | Bearer token for API auth (empty = no auth) |
+
+## Development Approach
+
+This project follows **spec-driven development**: `spec.md` is the source of truth for features and requirements. All implementation should be validated against the spec.
 
 ## Critical Safety Constraint
 

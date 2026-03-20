@@ -5,6 +5,7 @@ import type {
   CookieStatus,
   HouseholdProfile,
   PlanRequest,
+  ShoppingItem,
   ShoppingPlan,
   ShoppingRules,
   ShoppingSession,
@@ -15,9 +16,22 @@ import type {
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("api_secret_key");
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+  }
+  return headers;
+}
+
 async function fetchJSON<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: getAuthHeaders(),
     ...options,
   });
   if (!res.ok) {
@@ -41,6 +55,35 @@ export const api = {
 
     getSession: (sessionId: string) =>
       fetchJSON<ShoppingPlan>(`/api/shopping/sessions/${sessionId}`),
+
+    updateItems: (sessionId: string, items: ShoppingItem[]) =>
+      fetchJSON<ShoppingPlan>(`/api/shopping/sessions/${sessionId}/items`, {
+        method: "PUT",
+        body: JSON.stringify({ items }),
+      }),
+
+    addItem: (sessionId: string, item: ShoppingItem) =>
+      fetchJSON<ShoppingPlan>(`/api/shopping/sessions/${sessionId}/items`, {
+        method: "POST",
+        body: JSON.stringify({ item }),
+      }),
+
+    removeItem: (sessionId: string, itemIndex: number) =>
+      fetchJSON<ShoppingPlan>(`/api/shopping/sessions/${sessionId}/items/${itemIndex}`, {
+        method: "DELETE",
+      }),
+
+    updateItem: (sessionId: string, itemIndex: number, item: ShoppingItem) =>
+      fetchJSON<ShoppingPlan>(`/api/shopping/sessions/${sessionId}/items/${itemIndex}`, {
+        method: "PATCH",
+        body: JSON.stringify(item),
+      }),
+
+    reuseSession: (sessionId: string) =>
+      fetchJSON<ShoppingPlan>("/api/shopping/reuse", {
+        method: "POST",
+        body: JSON.stringify({ session_id: sessionId }),
+      }),
   },
 
   cart: {
@@ -52,6 +95,9 @@ export const api = {
 
     streamStatus: (executionId: string): EventSource =>
       new EventSource(`${BASE_URL}/api/cart/status/${executionId}`),
+
+    getExecutions: (sessionId: string) =>
+      fetchJSON<CartExecutionResult[]>(`/api/cart/executions/${sessionId}`),
   },
 
   rules: {

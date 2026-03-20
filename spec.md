@@ -68,9 +68,9 @@
 | Layer | Technology |
 |---|---|
 | Backend | Python 3.12+, FastAPI, Pydantic v2, Playwright |
-| AI | OpenAI API (GPT-4o) |
+| AI | OpenAI API (gpt-5.4-mini) via Agents SDK |
 | Package manager | UV |
-| Frontend | Next.js 15 (App Router), TypeScript, Tailwind CSS 4, shadcn/ui |
+| Frontend | Next.js 16 (App Router), TypeScript, Tailwind CSS 4, shadcn/ui |
 | Storage | YAML (rules), JSON (cookies, profile), SQLite (history) |
 | Container | Docker, docker-compose |
 | Cloud | Azure Container Apps + App Gateway WAF (IP制限) |

@@ -5,6 +5,7 @@ and add them to the cart based on a shopping plan.
 """
 
 import asyncio
+import logging
 import uuid
 from collections.abc import AsyncGenerator
 
@@ -17,9 +18,13 @@ from app.models.cart import (
 )
 from app.models.shopping import ShoppingPlan
 from app.services.cookie_manager import CookieManagerService
+from app.storage.history_repo import ShoppingHistoryRepository
 
-# In-memory store for execution results (could be replaced with Redis/DB)
-_executions: dict[str, CartExecutionResult] = {}
+logger = logging.getLogger(__name__)
+
+# In-memory store for active execution tracking (SSE streaming).
+# Completed executions are persisted to the database.
+_active_executions: dict[str, CartExecutionResult] = {}
 
 
 class CartExecutorService:
@@ -28,21 +33,25 @@ class CartExecutorService:
     Attributes:
         _cookie_manager: Service for loading browser cookies.
         _browser_factory: Factory for creating browser pages.
+        _history_repo: Repository for persisting execution results.
     """
 
     def __init__(
         self,
         cookie_manager: CookieManagerService,
         browser_factory: BrowserFactory,
+        history_repo: ShoppingHistoryRepository | None = None,
     ) -> None:
         """Initializes the cart executor.
 
         Args:
             cookie_manager: Service for loading Amazon session cookies.
             browser_factory: Factory for creating Playwright browser pages.
+            history_repo: Repository for persisting execution results.
         """
         self._cookie_manager = cookie_manager
         self._browser_factory = browser_factory
+        self._history_repo = history_repo or ShoppingHistoryRepository()
 
     async def start_execution(
         self,
@@ -67,7 +76,11 @@ class CartExecutorService:
             status="pending",
             total_items=len(active_items),
         )
-        _executions[execution_id] = result
+        _active_executions[execution_id] = result
+        logger.info(
+            "Starting cart execution %s for session %s (%d items, dry_run=%s)",
+            execution_id, plan.session_id, len(active_items), dry_run,
+        )
 
         # Start background task
         asyncio.create_task(self._run_execution(execution_id, plan, dry_run))
@@ -77,13 +90,20 @@ class CartExecutorService:
     async def get_result(self, execution_id: str) -> CartExecutionResult | None:
         """Retrieves the execution result by ID.
 
+        Checks in-memory active executions first, then falls back to database.
+
         Args:
             execution_id: Unique identifier of the execution.
 
         Returns:
             The execution result, or None if not found.
         """
-        return _executions.get(execution_id)
+        # Check active in-memory executions first
+        result = _active_executions.get(execution_id)
+        if result is not None:
+            return result
+        # Fall back to database
+        return await self._history_repo.get_cart_execution(execution_id)
 
     async def stream_status(self, execution_id: str) -> AsyncGenerator[CartStatusEvent, None]:
         """Polls execution status and yields server-sent events.
@@ -94,7 +114,7 @@ class CartExecutorService:
         Yields:
             CartStatusEvent for each processed item and completion.
         """
-        result = _executions.get(execution_id)
+        result = _active_executions.get(execution_id)
         if not result:
             return
 
@@ -107,7 +127,7 @@ class CartExecutorService:
         )
 
         while True:
-            result = _executions.get(execution_id)
+            result = _active_executions.get(execution_id)
             if not result:
                 break
 
@@ -142,7 +162,7 @@ class CartExecutorService:
         plan: ShoppingPlan,
         dry_run: bool,
     ) -> None:
-        result = _executions[execution_id]
+        result = _active_executions[execution_id]
         result.status = "running"
 
         try:
@@ -165,6 +185,7 @@ class CartExecutorService:
                         result.error_message = (
                             "Amazonにログインしていません。Cookieを更新してください。"
                         )
+                        logger.error("Cart execution %s failed: not logged in", execution_id)
                         return
 
                 for item in active_items:
@@ -188,12 +209,33 @@ class CartExecutorService:
                     else:
                         result.skipped_count += 1
 
+                    logger.info(
+                        "Item '%s': %s (execution %s)",
+                        item_result.item_name, item_result.status, execution_id,
+                    )
+
                     # Small delay between items to avoid rate limiting
                     if not dry_run:
                         await asyncio.sleep(1.0)
 
             result.status = "completed"
+            logger.info(
+                "Cart execution %s completed: %d added, %d failed, %d skipped",
+                execution_id, result.added_count, result.failed_count, result.skipped_count,
+            )
 
         except Exception as e:
             result.status = "failed"
             result.error_message = str(e)
+            logger.exception("Cart execution %s failed with error", execution_id)
+
+        finally:
+            # Persist to database
+            try:
+                await self._history_repo.save_cart_execution(result)
+                logger.info("Persisted execution %s to database", execution_id)
+            except Exception:
+                logger.exception("Failed to persist execution %s to database", execution_id)
+            # Clean up from active executions after a delay (allow SSE to finish)
+            await asyncio.sleep(5.0)
+            _active_executions.pop(execution_id, None)

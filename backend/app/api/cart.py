@@ -1,3 +1,5 @@
+"""API endpoints for cart execution and status streaming."""
+
 from collections.abc import AsyncGenerator
 
 from fastapi import APIRouter, HTTPException
@@ -13,8 +15,8 @@ router = APIRouter(prefix="/api/cart", tags=["cart"])
 
 _cookie_manager = CookieManagerService()
 _browser_factory = BrowserFactory()
-_executor = CartExecutorService(_cookie_manager, _browser_factory)
 _history_repo = ShoppingHistoryRepository()
+_executor = CartExecutorService(_cookie_manager, _browser_factory, _history_repo)
 
 
 @router.post("/execute", response_model=CartExecutionResult)
@@ -57,3 +59,9 @@ async def stream_cart_status(execution_id: str) -> StreamingResponse:
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.get("/executions/{session_id}", response_model=list[CartExecutionResult])
+async def get_executions(session_id: str) -> list[CartExecutionResult]:
+    """Get all cart executions for a session."""
+    return await _history_repo.get_executions_for_session(session_id)

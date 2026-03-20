@@ -6,11 +6,16 @@ cookies used to authenticate with Amazon Fresh.
 
 import asyncio
 import json
+import logging
+import os
+import stat
 from datetime import UTC, datetime
 from pathlib import Path
 
 from app.config import settings
 from app.models.settings import CookieEntry, CookieStatus
+
+logger = logging.getLogger(__name__)
 
 
 class CookieManagerService:
@@ -51,12 +56,14 @@ class CookieManagerService:
         """
         async with self._lock:
             await asyncio.to_thread(self._write_cookies, cookies)
+        logger.info("Saved %d cookies to %s", len(cookies), self._path)
         return await self.get_status()
 
     async def delete_cookies(self) -> None:
         """Deletes the stored cookies file from disk."""
         async with self._lock:
             await asyncio.to_thread(self._delete_cookies)
+        logger.info("Deleted cookies file at %s", self._path)
 
     async def load_cookies(self) -> list[CookieEntry]:
         """Loads and returns all stored cookies.
@@ -65,7 +72,9 @@ class CookieManagerService:
             List of cookie entries, or an empty list if none exist.
         """
         async with self._lock:
-            return await asyncio.to_thread(self._read_cookies)
+            cookies = await asyncio.to_thread(self._read_cookies)
+        logger.debug("Loaded %d cookies from %s", len(cookies), self._path)
+        return cookies
 
     def _check_status(self) -> CookieStatus:
         if not self._path.exists():
@@ -73,13 +82,13 @@ class CookieManagerService:
 
         cookies = self._read_cookies()
         if not cookies:
-            return CookieStatus(has_cookies=False, message="Cookie файルが空です")
+            return CookieStatus(has_cookies=False, message="Cookieファイルが空です")
 
         now = datetime.now(UTC).timestamp()
         valid_cookies = [c for c in cookies if c.expires is None or c.expires > now]
 
-        stat = self._path.stat()
-        last_updated = datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat()
+        file_stat = self._path.stat()
+        last_updated = datetime.fromtimestamp(file_stat.st_mtime, tz=UTC).isoformat()
 
         is_valid = len(valid_cookies) > 0
         return CookieStatus(
@@ -102,6 +111,8 @@ class CookieManagerService:
         data = [c.model_dump(exclude_none=True) for c in cookies]
         with open(self._path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
+        # Restrict file permissions to owner only (sensitive data)
+        os.chmod(self._path, stat.S_IRUSR | stat.S_IWUSR)
 
     def _delete_cookies(self) -> None:
         if self._path.exists():

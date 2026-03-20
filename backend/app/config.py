@@ -24,13 +24,20 @@ class Settings(BaseSettings):
 
     openai_api_key: str = ""
     data_dir: Path = Path("/data")
+    config_dir: Path = Path("/config")
     database_path: Path = Path("/data/shopping.db")
     rules_path: Path = Path("/data/rules.yaml")
     cookies_path: Path = Path("/data/cookies.json")
     profile_path: Path = Path("/data/profile.json")
 
     # OpenAI model
-    openai_model: str = "gpt-4o"
+    openai_model: str = "gpt-5.4-mini"
+
+    # Security
+    api_secret_key: str = ""
+
+    # Logging
+    log_level: str = "INFO"
 
     # Playwright
     browser_headless: bool = True

@@ -39,5 +39,10 @@ class AmazonFreshSelectors:
     FRESH_BADGE = "[aria-label*='Amazon Fresh']"
     DELIVERY_AVAILABLE = ".a-color-success"
 
+    # Quantity controls
+    QUANTITY_SELECT = "select[id*='quantity']"
+    QUANTITY_INPUT = "input[id*='quantity']"
+    QUANTITY_SELECT_PDP = "#quantity"
+
     # Pagination
     NEXT_PAGE = ".s-pagination-next:not(.s-pagination-disabled)"

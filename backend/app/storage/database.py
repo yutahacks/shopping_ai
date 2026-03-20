@@ -4,26 +4,36 @@ Provides helpers to obtain async database connections and to create
 the required tables on application startup.
 """
 
+import logging
+from contextlib import asynccontextmanager
+from collections.abc import AsyncGenerator
+
 import aiosqlite
 
 from app.config import settings
 
+logger = logging.getLogger(__name__)
 
-async def get_db() -> aiosqlite.Connection:
-    """Opens and returns an async SQLite connection.
 
-    Returns:
+@asynccontextmanager
+async def get_db() -> AsyncGenerator[aiosqlite.Connection, None]:
+    """Opens and yields an async SQLite connection.
+
+    Yields:
         An aiosqlite Connection with row factory set to Row.
     """
     db = await aiosqlite.connect(str(settings.database_path))
     db.row_factory = aiosqlite.Row
-    return db
+    try:
+        yield db
+    finally:
+        await db.close()
 
 
 async def init_db() -> None:
     """Creates database tables if they do not already exist."""
     settings.database_path.parent.mkdir(parents=True, exist_ok=True)
-    async with aiosqlite.connect(str(settings.database_path)) as db:
+    async with get_db() as db:
         await db.execute("""
             CREATE TABLE IF NOT EXISTS shopping_sessions (
                 session_id TEXT PRIMARY KEY,
@@ -44,3 +54,4 @@ async def init_db() -> None:
             )
         """)
         await db.commit()
+    logger.info("Database tables initialized at %s", settings.database_path)

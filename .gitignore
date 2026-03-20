@@ -14,10 +14,8 @@ __pycache__/
 node_modules/
 .next/
 
-# Data (runtime)
-data/shopping.db
-data/cookies.json
-data/profile.json
+# Runtime data (auto-populated from config/ on startup)
+data/
 
 # Environment
 .env
