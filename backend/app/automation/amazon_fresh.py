@@ -248,17 +248,17 @@ class AmazonFreshAutomator:
 
         if strategy == "cheapest":
             if priced:
-                return min(priced, key=lambda c: c.price)  # type: ignore[return-value]
+                return min(priced, key=lambda c: c.price or 0)
             return unpriced[0] if unpriced else None
 
         elif strategy == "premium":
             if priced:
-                return max(priced, key=lambda c: c.price)  # type: ignore[return-value]
+                return max(priced, key=lambda c: c.price or 0)
             return unpriced[0] if unpriced else None
 
         else:  # value: pick middle
             if priced:
-                sorted_priced = sorted(priced, key=lambda c: c.price)  # type: ignore[arg-type]
+                sorted_priced = sorted(priced, key=lambda c: c.price or 0)
                 mid = len(sorted_priced) // 2
                 return sorted_priced[mid]
             return unpriced[0] if unpriced else None

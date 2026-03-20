@@ -52,7 +52,9 @@ class BrowserFactory:
                 )
 
                 if cookies:
-                    await context.add_cookies([self._to_playwright_cookie(c) for c in cookies])
+                    await context.add_cookies(
+                        [self._to_playwright_cookie(c) for c in cookies]  # type: ignore[misc]
+                    )
 
                 try:
                     yield context
@@ -83,8 +85,8 @@ class BrowserFactory:
                 await page.close()
 
     @staticmethod
-    def _to_playwright_cookie(cookie: CookieEntry) -> dict:
-        result: dict = {
+    def _to_playwright_cookie(cookie: CookieEntry) -> dict[str, object]:
+        result: dict[str, object] = {
             "name": cookie.name,
             "value": cookie.value,
             "domain": cookie.domain,
