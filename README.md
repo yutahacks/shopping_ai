@@ -50,6 +50,9 @@ uv run uvicorn app.main:app --reload --port 8000
 cd frontend
 npm install
 npm run dev
+
+# Git hooks のインストール (初回のみ・必須)
+bash scripts/setup-hooks.sh
 ```
 
 ### Docker
@@ -64,30 +67,67 @@ OPENAI_API_KEY=sk-xxx docker compose up --build
 
 ## 開発
 
+### コマンド一覧
+
 ```bash
-# テスト
+# --- バックエンド ---
 cd backend
-uv run pytest
+uv run pytest                                     # テスト実行
+uv run pytest -m "not integration"                # ユニットテストのみ
+uv run pytest --cov=app --cov-report=term-missing # カバレッジ付きテスト
+uv run ruff check .                               # Lint
+uv run ruff format .                              # フォーマット
+uv run mypy app/                                  # 型チェック (strict)
 
-# Lint & Format
-uv run ruff check app/
-uv run ruff format app/
-
-# 型チェック
-uv run mypy app/
-
-# フロントエンド
+# --- フロントエンド ---
 cd frontend
-npm run lint
-npm run build
+npm run lint                                      # ESLint
+npm run typecheck                                 # TypeScript チェック (tsc --noEmit)
+npm run test                                      # テスト実行 (vitest)
+npm run build                                     # プロダクションビルド
 ```
 
-### Pre-commit hooks
+### Git Hooks
 
-```bash
-pip install pre-commit
-pre-commit install
+`bash scripts/setup-hooks.sh` で以下の hooks がインストールされます：
+
+**pre-commit** — コミット前に自動実行（全7チェック）:
+1. `ruff check` — Python lint
+2. `ruff format --check` — Python フォーマット確認
+3. `mypy app/` — Python 型チェック (strict)
+4. `pytest` — Backend ユニットテスト (40件)
+5. `eslint` — TypeScript lint
+6. `tsc --noEmit` — TypeScript 型チェック
+7. `vitest run` — Frontend テスト (13件)
+
+**commit-msg** — コミットメッセージの形式を強制:
 ```
+<type>(<scope>): <description>
+
+# 例:
+feat: add shopping cart API
+fix(planner): handle empty item list
+docs: update README with setup instructions
+```
+使用可能な type: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `ci`, `perf`, `style`, `build`, `revert`
+
+### CI/CD
+
+GitHub Actions が push / PR 時に自動実行:
+- **Backend**: ruff check → ruff format → mypy → pytest (カバレッジ付き)
+- **Frontend**: ESLint → tsc → build → vitest
+
+### Branch Protection
+
+- `main` への直接 push は禁止
+- CI が全てパスしないとマージ不可
+- Force push は無効化
+
+### Claude Code Hooks
+
+`.claude/settings.json` で Claude Code 使用時に自動 lint:
+- Python ファイル編集後 → `ruff check --fix` + `ruff format` を自動実行
+- TypeScript ファイル編集後 → `eslint` を自動実行
 
 ## プロジェクト構成
 
@@ -99,14 +139,22 @@ shopping_ai/
 │   │   ├── models/     # Pydantic モデル
 │   │   ├── services/   # ビジネスロジック
 │   │   ├── automation/ # Playwright 自動化
+│   │   ├── middleware/  # 認証ミドルウェア
 │   │   └── storage/    # SQLite 永続化
-│   └── tests/
+│   └── tests/          # pytest テスト (unit/ + integration/)
 ├── frontend/           # Next.js TypeScript
 │   ├── app/            # App Router ページ
 │   ├── components/     # React コンポーネント
 │   ├── hooks/          # カスタムフック
-│   └── lib/            # API クライアント・型定義
-├── data/               # ランタイムデータ
+│   ├── lib/            # API クライアント・型定義
+│   └── __tests__/      # vitest テスト
+├── scripts/            # 開発スクリプト
+│   ├── hooks/          # Git hooks (pre-commit, commit-msg)
+│   └── setup-hooks.sh  # Hook インストーラー
+├── .claude/            # Claude Code 設定 (auto-lint hooks)
+├── .github/            # GitHub Actions CI, Issue/PR テンプレート
+├── config/             # デフォルト設定テンプレート
+├── data/               # ランタイムデータ (gitignored)
 ├── infra/              # Azure Bicep IaC
 └── docker-compose.yml
 ```
