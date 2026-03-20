@@ -7,6 +7,118 @@ import pytest
 from app.models.settings import CookieEntry
 from app.services.cookie_manager import CookieManagerService
 
+# Common patches for browser_login tests (CDP-based approach).
+# subprocess/shutil/async_playwright are imported inside browser_login,
+# so we patch the builtins at their source module.
+_BROWSER_LOGIN_PATCHES = {
+    "detect": "app.services.cookie_manager._detect_chromium_browser",
+    "port": "app.services.cookie_manager._find_free_port",
+    "cdp_ready": "app.services.cookie_manager._wait_for_cdp_ready",
+    "popen": "subprocess.Popen",
+    "rmtree": "shutil.rmtree",
+    "playwright": "playwright.async_api.async_playwright",
+}
+
+
+def _make_browser_login_mocks(
+    *,
+    nav_text: str = "アカウント＆リスト",
+    cookies: list[dict[str, object]] | None = None,
+    initial_url: str = "https://www.amazon.co.jp/ap/signin",
+    poll_url: str = "https://www.amazon.co.jp/",
+) -> dict[str, MagicMock | AsyncMock]:
+    """Create mock objects for browser_login CDP flow.
+
+    Returns:
+        Dict with keys: page, context, browser, pw, pw_ctx, proc.
+    """
+    mock_nav_el = AsyncMock()
+    mock_nav_el.text_content = AsyncMock(return_value=nav_text)
+
+    mock_page = AsyncMock()
+    mock_page.url = poll_url
+    mock_page.wait_for_load_state = AsyncMock()
+    mock_page.wait_for_selector = AsyncMock(return_value=mock_nav_el)
+
+    if cookies is None:
+        cookies = [
+            {
+                "name": "session-id",
+                "value": "abc123",
+                "domain": ".amazon.co.jp",
+                "path": "/",
+                "secure": True,
+                "httpOnly": False,
+                "sameSite": "None",
+                "expires": 9999999999.0,
+            },
+            {
+                "name": "csm-hit",
+                "value": "xyz789",
+                "domain": ".amazon.co.jp",
+                "path": "/",
+                "secure": False,
+                "httpOnly": False,
+                "sameSite": "Lax",
+                "expires": 9999999999.0,
+            },
+            {
+                "name": "unrelated",
+                "value": "skip",
+                "domain": ".google.com",
+                "path": "/",
+                "secure": False,
+                "httpOnly": False,
+            },
+        ]
+
+    mock_context = MagicMock()
+    mock_context.pages = [mock_page]
+    mock_context.cookies = AsyncMock(return_value=cookies)
+
+    mock_browser = MagicMock()
+    mock_browser.contexts = [mock_context]
+    mock_browser.close = AsyncMock()
+
+    mock_pw = MagicMock()
+    mock_pw.chromium.connect_over_cdp = AsyncMock(return_value=mock_browser)
+
+    mock_pw_ctx = AsyncMock()
+    mock_pw_ctx.__aenter__ = AsyncMock(return_value=mock_pw)
+    mock_pw_ctx.__aexit__ = AsyncMock(return_value=False)
+
+    mock_proc = MagicMock()
+    mock_proc.pid = 12345
+    mock_proc.poll = MagicMock(return_value=None)
+    mock_proc.send_signal = MagicMock()
+    mock_proc.wait = MagicMock()
+
+    # Handle initial_url for wait_for_load_state, then poll_url after
+    original_url = mock_page.url
+
+    async def _wait_for_load_state_side_effect(*_args: object, **_kwargs: object) -> None:
+        mock_page.url = initial_url
+
+    mock_page.wait_for_load_state.side_effect = _wait_for_load_state_side_effect
+
+    # After the first sleep in the poll loop, switch URL back to poll_url
+    call_count = 0
+
+    async def _sleep_side_effect(_duration: float) -> None:
+        nonlocal call_count
+        call_count += 1
+        if call_count >= 1:
+            mock_page.url = original_url
+
+    return {
+        "page": mock_page,
+        "context": mock_context,
+        "browser": mock_browser,
+        "pw_ctx": mock_pw_ctx,
+        "proc": mock_proc,
+        "sleep_side_effect": _sleep_side_effect,
+    }
+
 
 @pytest.fixture
 def cookie_manager(tmp_path):
@@ -51,60 +163,17 @@ async def test_get_status_no_file(cookie_manager):
 
 @pytest.mark.asyncio
 async def test_browser_login_success(cookie_manager):
-    """Browser login captures Amazon cookies and saves them."""
-    # Mock Playwright objects
-    mock_page = AsyncMock()
-    mock_page.text_content = AsyncMock(return_value="アカウント＆リスト")
+    """Browser login captures Amazon cookies and saves them via CDP."""
+    mocks = _make_browser_login_mocks()
 
-    mock_context = AsyncMock()
-    mock_context.new_page = AsyncMock(return_value=mock_page)
-    mock_context.cookies = AsyncMock(
-        return_value=[
-            {
-                "name": "session-id",
-                "value": "abc123",
-                "domain": ".amazon.co.jp",
-                "path": "/",
-                "secure": True,
-                "httpOnly": False,
-                "sameSite": "None",
-                "expires": 9999999999.0,
-            },
-            {
-                "name": "csm-hit",
-                "value": "xyz789",
-                "domain": ".amazon.co.jp",
-                "path": "/",
-                "secure": False,
-                "httpOnly": False,
-                "sameSite": "Lax",
-                "expires": 9999999999.0,
-            },
-            {
-                "name": "unrelated",
-                "value": "skip",
-                "domain": ".google.com",
-                "path": "/",
-                "secure": False,
-                "httpOnly": False,
-            },
-        ]
-    )
-
-    mock_browser = AsyncMock()
-    mock_browser.new_context = AsyncMock(return_value=mock_context)
-
-    mock_pw = MagicMock()
-    mock_pw.chromium.launch = AsyncMock(return_value=mock_browser)
-
-    # Create async context manager mock for async_playwright
-    mock_pw_ctx = AsyncMock()
-    mock_pw_ctx.__aenter__ = AsyncMock(return_value=mock_pw)
-    mock_pw_ctx.__aexit__ = AsyncMock(return_value=False)
-
-    with patch(
-        "playwright.async_api.async_playwright",
-        return_value=mock_pw_ctx,
+    with (
+        patch(_BROWSER_LOGIN_PATCHES["detect"], return_value=("Arc", "/usr/bin/arc")),
+        patch(_BROWSER_LOGIN_PATCHES["port"], return_value=9222),
+        patch(_BROWSER_LOGIN_PATCHES["cdp_ready"], new_callable=AsyncMock),
+        patch(_BROWSER_LOGIN_PATCHES["popen"], return_value=mocks["proc"]),
+        patch(_BROWSER_LOGIN_PATCHES["rmtree"]),
+        patch(_BROWSER_LOGIN_PATCHES["playwright"], return_value=mocks["pw_ctx"]),
+        patch("asyncio.sleep", side_effect=mocks["sleep_side_effect"]),
     ):
         status = await cookie_manager.browser_login()
 
@@ -123,13 +192,8 @@ async def test_browser_login_success(cookie_manager):
 @pytest.mark.asyncio
 async def test_browser_login_no_amazon_cookies(cookie_manager):
     """Browser login raises error if no Amazon cookies found."""
-    mock_page = AsyncMock()
-    mock_page.text_content = AsyncMock(return_value="アカウント＆リスト")
-
-    mock_context = AsyncMock()
-    mock_context.new_page = AsyncMock(return_value=mock_page)
-    mock_context.cookies = AsyncMock(
-        return_value=[
+    mocks = _make_browser_login_mocks(
+        cookies=[
             {
                 "name": "other",
                 "value": "val",
@@ -138,24 +202,54 @@ async def test_browser_login_no_amazon_cookies(cookie_manager):
                 "secure": False,
                 "httpOnly": False,
             }
-        ]
+        ],
     )
 
-    mock_browser = AsyncMock()
-    mock_browser.new_context = AsyncMock(return_value=mock_context)
+    with (
+        patch(_BROWSER_LOGIN_PATCHES["detect"], return_value=("Chrome", "/usr/bin/chrome")),
+        patch(_BROWSER_LOGIN_PATCHES["port"], return_value=9222),
+        patch(_BROWSER_LOGIN_PATCHES["cdp_ready"], new_callable=AsyncMock),
+        patch(_BROWSER_LOGIN_PATCHES["popen"], return_value=mocks["proc"]),
+        patch(_BROWSER_LOGIN_PATCHES["rmtree"]),
+        patch(_BROWSER_LOGIN_PATCHES["playwright"], return_value=mocks["pw_ctx"]),
+        patch("asyncio.sleep", side_effect=mocks["sleep_side_effect"]),
+        pytest.raises(RuntimeError, match="Amazon関連のCookieが取得できませんでした"),
+    ):
+        await cookie_manager.browser_login()
 
-    mock_pw = MagicMock()
-    mock_pw.chromium.launch = AsyncMock(return_value=mock_browser)
 
-    mock_pw_ctx = AsyncMock()
-    mock_pw_ctx.__aenter__ = AsyncMock(return_value=mock_pw)
-    mock_pw_ctx.__aexit__ = AsyncMock(return_value=False)
+@pytest.mark.asyncio
+async def test_browser_login_validates_initial_page(cookie_manager):
+    """Browser login raises error if Amazon page doesn't load."""
+    mocks = _make_browser_login_mocks(initial_url="about:blank")
 
     with (
-        patch(
-            "playwright.async_api.async_playwright",
-            return_value=mock_pw_ctx,
-        ),
-        pytest.raises(RuntimeError, match="Amazon関連のCookieが取得できませんでした"),
+        patch(_BROWSER_LOGIN_PATCHES["detect"], return_value=("Arc", "/usr/bin/arc")),
+        patch(_BROWSER_LOGIN_PATCHES["port"], return_value=9222),
+        patch(_BROWSER_LOGIN_PATCHES["cdp_ready"], new_callable=AsyncMock),
+        patch(_BROWSER_LOGIN_PATCHES["popen"], return_value=mocks["proc"]),
+        patch(_BROWSER_LOGIN_PATCHES["rmtree"]),
+        patch(_BROWSER_LOGIN_PATCHES["playwright"], return_value=mocks["pw_ctx"]),
+        pytest.raises(RuntimeError, match="Amazonのログインページを開けませんでした"),
+    ):
+        await cookie_manager.browser_login()
+
+
+@pytest.mark.asyncio
+async def test_browser_login_detects_browser_crash(cookie_manager):
+    """Browser login raises error if browser process exits unexpectedly."""
+    mocks = _make_browser_login_mocks()
+    # Simulate browser process dying
+    mocks["proc"].poll = MagicMock(return_value=1)
+
+    with (
+        patch(_BROWSER_LOGIN_PATCHES["detect"], return_value=("Arc", "/usr/bin/arc")),
+        patch(_BROWSER_LOGIN_PATCHES["port"], return_value=9222),
+        patch(_BROWSER_LOGIN_PATCHES["cdp_ready"], new_callable=AsyncMock),
+        patch(_BROWSER_LOGIN_PATCHES["popen"], return_value=mocks["proc"]),
+        patch(_BROWSER_LOGIN_PATCHES["rmtree"]),
+        patch(_BROWSER_LOGIN_PATCHES["playwright"], return_value=mocks["pw_ctx"]),
+        patch("asyncio.sleep", side_effect=mocks["sleep_side_effect"]),
+        pytest.raises(RuntimeError, match="ブラウザが予期せず終了しました"),
     ):
         await cookie_manager.browser_login()
