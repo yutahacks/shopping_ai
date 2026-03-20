@@ -226,11 +226,12 @@ class CookieManagerService:
         cdp_port: int,
         user_data_dir: str,
     ) -> subprocess.Popen[bytes]:
-        """Launch a browser subprocess with CDP debugging enabled.
+        """Launch a browser subprocess with CDP debugging and verify connectivity.
 
-        After launching, waits briefly to verify the process didn't exit
-        immediately (e.g. "already open" errors from single-instance
-        browsers like Arc).
+        After launching, checks that (1) the process didn't exit immediately
+        (e.g. single-instance errors) and (2) the CDP port actually becomes
+        available. If either check fails, the process is killed and an error
+        is raised so the caller can try the next browser.
 
         Args:
             executable_path: Path to the browser executable.
@@ -239,11 +240,14 @@ class CookieManagerService:
             user_data_dir: Temporary user data directory.
 
         Returns:
-            The running subprocess.
+            The running subprocess with CDP confirmed ready.
 
         Raises:
-            RuntimeError: If the browser exits immediately after launch.
+            RuntimeError: If the browser exits immediately or CDP is not
+                available within the timeout.
         """
+        import signal
+
         proc = subprocess.Popen(
             [
                 executable_path,
@@ -274,6 +278,22 @@ class CookieManagerService:
             raise RuntimeError(
                 f"{browser_name}を起動できませんでした"
                 f" (exit code {proc.returncode})" + (f": {stderr_output}" if stderr_output else "")
+            )
+
+        # Verify CDP port is actually accepting connections.
+        # Some browsers (e.g. Arc) ignore --remote-debugging-port.
+        try:
+            await _wait_for_cdp_ready(cdp_port)
+        except RuntimeError:
+            # Kill the unresponsive browser before raising
+            proc.send_signal(signal.SIGTERM)
+            try:
+                proc.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+            raise RuntimeError(
+                f"{browser_name}がCDPポートを開きませんでした。"
+                f"--remote-debugging-port が無視された可能性があります。"
             )
 
         return proc
@@ -344,9 +364,6 @@ class CookieManagerService:
         )
 
         try:
-            # Wait for CDP to become available
-            await _wait_for_cdp_ready(cdp_port)
-
             async with async_playwright() as pw:
                 browser = await pw.chromium.connect_over_cdp(f"http://127.0.0.1:{cdp_port}")
                 try:
