@@ -23,12 +23,12 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     openai_api_key: str = ""
-    data_dir: Path = Path("/data")
-    config_dir: Path = Path("/config")
-    database_path: Path = Path("/data/shopping.db")
-    rules_path: Path = Path("/data/rules.yaml")
-    cookies_path: Path = Path("/data/cookies.json")
-    profile_path: Path = Path("/data/profile.json")
+    data_dir: Path = Path("./data")
+    config_dir: Path = Path("./config")
+    database_path: Path = Path("./data/shopping.db")
+    rules_path: Path = Path("./data/rules.yaml")
+    cookies_path: Path = Path("./data/cookies.json")
+    profile_path: Path = Path("./data/profile.json")
 
     # OpenAI model
     openai_model: str = "gpt-5.4-mini"

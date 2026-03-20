@@ -155,7 +155,7 @@ Runs on push to `main` and all PRs. Mirrors pre-commit checks plus `npm run buil
 | Variable | Description |
 |---|---|
 | `OPENAI_API_KEY` | OpenAI API key |
-| `DATA_DIR` | Data directory path (default: `/data`) |
+| `DATA_DIR` | Data directory path (default: `./data`, Docker: `/data`) |
 | `DATABASE_PATH` | SQLite DB path |
 | `RULES_PATH` | Shopping rules YAML path |
 | `COOKIES_PATH` | Amazon cookies JSON path |
