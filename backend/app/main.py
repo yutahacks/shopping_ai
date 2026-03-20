@@ -6,7 +6,7 @@ database initialization on startup.
 
 import logging
 import sys
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
@@ -110,7 +110,10 @@ app.include_router(api_router)
 
 
 @app.middleware("http")
-async def add_security_headers(request: Request, call_next) -> Response:  # type: ignore[type-arg]
+async def add_security_headers(
+    request: Request,  # noqa: ARG001
+    call_next: Callable[..., Awaitable[Response]],
+) -> Response:
     """Add security headers to all responses."""
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -121,7 +124,7 @@ async def add_security_headers(request: Request, call_next) -> Response:  # type
 
 
 @app.get("/health")
-async def health() -> dict:
+async def health() -> dict[str, str]:
     """Returns a simple health check response.
 
     Returns:

@@ -23,7 +23,7 @@ async def upload_cookies(request: CookieUploadRequest) -> CookieStatus:
 
 
 @router.delete("/cookies")
-async def delete_cookies() -> dict:
+async def delete_cookies() -> dict[str, str]:
     """Delete all stored cookies."""
     await _cookie_manager.delete_cookies()
     return {"message": "Cookieを削除しました"}
