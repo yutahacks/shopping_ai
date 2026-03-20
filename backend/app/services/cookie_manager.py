@@ -4,6 +4,8 @@ Provides storage, validation, and lifecycle management for browser
 cookies used to authenticate with Amazon Fresh.
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
@@ -11,6 +13,7 @@ import os
 import platform
 import socket
 import stat
+import subprocess
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -52,11 +55,11 @@ _CHROMIUM_BROWSERS: list[dict[str, str]] = [
 ]
 
 
-def _detect_chromium_browser() -> tuple[str, str]:
-    """Detect an installed Chromium-based browser.
+def _detect_chromium_browsers() -> list[tuple[str, str]]:
+    """Detect all installed Chromium-based browsers.
 
     Returns:
-        Tuple of (browser_name, executable_path).
+        List of (browser_name, executable_path) tuples in priority order.
 
     Raises:
         RuntimeError: If no supported Chromium-based browser is found.
@@ -67,17 +70,21 @@ def _detect_chromium_browser() -> tuple[str, str]:
     if key is None:
         raise RuntimeError(f"未対応のOS ({system}) です。現在macOSのみサポートしています。")
 
+    found: list[tuple[str, str]] = []
     for browser in _CHROMIUM_BROWSERS:
         exe_path = browser.get(key, "")
         if exe_path and Path(exe_path).exists():
             logger.info("Detected browser: %s at %s", browser["name"], exe_path)
-            return browser["name"], exe_path
+            found.append((browser["name"], exe_path))
 
-    supported = ", ".join(b["name"] for b in _CHROMIUM_BROWSERS)
-    raise RuntimeError(
-        "対応するChromiumベースのブラウザが見つかりませんでした。"
-        f"以下のいずれかをインストールしてください: {supported}"
-    )
+    if not found:
+        supported = ", ".join(b["name"] for b in _CHROMIUM_BROWSERS)
+        raise RuntimeError(
+            "対応するChromiumベースのブラウザが見つかりませんでした。"
+            f"以下のいずれかをインストールしてください: {supported}"
+        )
+
+    return found
 
 
 def _find_free_port() -> int:
@@ -212,14 +219,73 @@ class CookieManagerService:
         if self._path.exists():
             self._path.unlink()
 
+    async def _launch_browser_cdp(
+        self,
+        executable_path: str,
+        browser_name: str,
+        cdp_port: int,
+        user_data_dir: str,
+    ) -> subprocess.Popen[bytes]:
+        """Launch a browser subprocess with CDP debugging enabled.
+
+        After launching, waits briefly to verify the process didn't exit
+        immediately (e.g. "already open" errors from single-instance
+        browsers like Arc).
+
+        Args:
+            executable_path: Path to the browser executable.
+            browser_name: Human-readable browser name for logging.
+            cdp_port: TCP port for CDP remote debugging.
+            user_data_dir: Temporary user data directory.
+
+        Returns:
+            The running subprocess.
+
+        Raises:
+            RuntimeError: If the browser exits immediately after launch.
+        """
+        proc = subprocess.Popen(
+            [
+                executable_path,
+                f"--remote-debugging-port={cdp_port}",
+                f"--user-data-dir={user_data_dir}",
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--lang=ja-JP",
+                AMAZON_LOGIN_URL,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+        logger.info(
+            "Launched %s (PID %d) with CDP on port %d",
+            browser_name,
+            proc.pid,
+            cdp_port,
+        )
+
+        # Wait briefly to check if the process exits immediately
+        # (e.g. Arc: "Only one instance can be opened at a time")
+        await asyncio.sleep(1)
+        if proc.poll() is not None:
+            stderr_output = ""
+            if proc.stderr:
+                stderr_output = proc.stderr.read().decode("utf-8", errors="replace").strip()
+            raise RuntimeError(
+                f"{browser_name}を起動できませんでした"
+                f" (exit code {proc.returncode})" + (f": {stderr_output}" if stderr_output else "")
+            )
+
+        return proc
+
     async def browser_login(self) -> CookieStatus:
         """Launch the user's Chromium-based browser for Amazon login via CDP.
 
         Auto-detects installed Chromium-based browsers (Arc, Chrome, Brave,
-        Edge, Chromium) and launches the first one found as a subprocess with
-        Chrome DevTools Protocol (CDP) enabled. Connects via CDP using
-        Playwright, which is far more reliable than ``executable_path`` for
-        modified Chromium browsers like Arc.
+        Edge, Chromium) and tries each in priority order. If a browser
+        fails to launch (e.g. single-instance browsers like Arc that are
+        already open), automatically falls back to the next available
+        browser. Connects via CDP using Playwright.
 
         The user logs in normally (including 2FA/CAPTCHA). Once login is
         confirmed by checking the account nav text, cookies are captured
@@ -230,22 +296,16 @@ class CookieManagerService:
 
         Raises:
             TimeoutError: If login is not completed within the timeout period.
-            RuntimeError: If no compatible browser found, login verification
-                fails, or no cookies captured.
+            RuntimeError: If no compatible browser could be launched, login
+                verification fails, or no cookies captured.
         """
         import shutil
         import signal
-        import subprocess
         import tempfile
 
         from playwright.async_api import async_playwright
 
-        browser_name, executable_path = _detect_chromium_browser()
-        logger.info(
-            "Starting browser login flow with %s via CDP (timeout: %ds)",
-            browser_name,
-            LOGIN_TIMEOUT_SEC,
-        )
+        available_browsers = _detect_chromium_browsers()
 
         # Session cookie names that Amazon sets only after successful login
         _login_cookie_names = {"session-id", "session-token", "ubid-acbjp", "x-acbjp"}
@@ -254,28 +314,36 @@ class CookieManagerService:
         user_data_dir = tempfile.mkdtemp(prefix="shopping_ai_browser_")
         proc: subprocess.Popen[bytes] | None = None
 
-        try:
-            # Launch browser subprocess with CDP debugging enabled
-            proc = subprocess.Popen(
-                [
-                    executable_path,
-                    f"--remote-debugging-port={cdp_port}",
-                    f"--user-data-dir={user_data_dir}",
-                    "--no-first-run",
-                    "--no-default-browser-check",
-                    "--lang=ja-JP",
-                    AMAZON_LOGIN_URL,
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            logger.info(
-                "Launched %s (PID %d) with CDP on port %d",
-                browser_name,
-                proc.pid,
-                cdp_port,
+        # Try each browser until one successfully launches
+        launch_errors: list[str] = []
+        launched_browser_name = ""
+        for browser_name, executable_path in available_browsers:
+            try:
+                proc = await self._launch_browser_cdp(
+                    executable_path, browser_name, cdp_port, user_data_dir
+                )
+                launched_browser_name = browser_name
+                break
+            except RuntimeError as e:
+                logger.warning("Failed to launch %s: %s", browser_name, e)
+                launch_errors.append(f"{browser_name}: {e}")
+                # Get a new port for the next attempt
+                cdp_port = _find_free_port()
+
+        if proc is None:
+            raise RuntimeError(
+                "起動可能なブラウザが見つかりませんでした。"
+                "他のブラウザをすべて閉じてからもう一度お試しいただくか、"
+                "Google Chromeをインストールしてください。\n" + "\n".join(launch_errors)
             )
 
+        logger.info(
+            "Starting browser login flow with %s via CDP (timeout: %ds)",
+            launched_browser_name,
+            LOGIN_TIMEOUT_SEC,
+        )
+
+        try:
             # Wait for CDP to become available
             await _wait_for_cdp_ready(cdp_port)
 
