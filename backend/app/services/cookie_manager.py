@@ -17,6 +17,10 @@ from app.models.settings import CookieEntry, CookieStatus
 
 logger = logging.getLogger(__name__)
 
+AMAZON_LOGIN_URL = "https://www.amazon.co.jp/ap/signin?openid.pape.max_auth_age=0&openid.return_to=https%3A%2F%2Fwww.amazon.co.jp%2F&openid.identity=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.assoc_handle=jpflex&openid.mode=checkid_setup&openid.claimed_id=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0"
+AMAZON_TOP_URL = "https://www.amazon.co.jp/"
+LOGIN_TIMEOUT_SEC = 180
+
 
 class CookieManagerService:
     """Manages Amazon session cookies stored as a JSON file.
@@ -117,3 +121,105 @@ class CookieManagerService:
     def _delete_cookies(self) -> None:
         if self._path.exists():
             self._path.unlink()
+
+    async def browser_login(self) -> CookieStatus:
+        """Launch a headed browser for the user to log in to Amazon.
+
+        Opens a visible Chromium browser, navigates to the Amazon login page,
+        and waits for the user to complete login (including 2FA/CAPTCHA).
+        Once logged in, captures all cookies and saves them.
+
+        Returns:
+            Cookie status after saving the captured cookies.
+
+        Raises:
+            TimeoutError: If login is not completed within the timeout period.
+            RuntimeError: If the browser cannot be launched.
+        """
+        from playwright.async_api import async_playwright
+
+        logger.info("Starting browser login flow (timeout: %ds)", LOGIN_TIMEOUT_SEC)
+
+        async with async_playwright() as pw:
+            browser = await pw.chromium.launch(
+                headless=False,
+                args=["--no-sandbox", "--disable-setuid-sandbox", "--lang=ja-JP"],
+            )
+            try:
+                context = await browser.new_context(
+                    locale="ja-JP",
+                    timezone_id="Asia/Tokyo",
+                    viewport={"width": 1280, "height": 800},
+                )
+                page = await context.new_page()
+
+                # Navigate to Amazon login page
+                await page.goto(AMAZON_LOGIN_URL, wait_until="domcontentloaded")
+                logger.info("Opened Amazon login page, waiting for user to log in...")
+
+                # Wait until the user completes login and lands on Amazon top
+                # Login is detected when the URL no longer contains '/ap/signin'
+                # and the nav shows an account name (not "ログイン")
+                try:
+                    await page.wait_for_url(
+                        lambda url: "/ap/signin" not in url and "/ap/mfa" not in url,
+                        timeout=LOGIN_TIMEOUT_SEC * 1000,
+                    )
+                except Exception:
+                    raise TimeoutError(
+                        f"ログインが{LOGIN_TIMEOUT_SEC}秒以内に完了しませんでした。"
+                        "もう一度お試しください。"
+                    )
+
+                # Give a moment for cookies to settle after redirect
+                await page.wait_for_timeout(2000)
+
+                # Verify login by checking the account nav text
+                try:
+                    nav_text = await page.text_content("#nav-link-accountList", timeout=5000)
+                    if nav_text and "ログイン" in nav_text:
+                        raise RuntimeError(
+                            "ログインが完了していないようです。もう一度お試しください。"
+                        )
+                except Exception as e:
+                    if isinstance(e, RuntimeError):
+                        raise
+                    # If we can't check the nav, proceed anyway — cookies might still be valid
+                    logger.warning("Could not verify login status via nav: %s", e)
+
+                # Capture all cookies from the browser context
+                raw_cookies = await context.cookies()
+                logger.info("Captured %d cookies from browser", len(raw_cookies))
+
+                # Convert to our CookieEntry model
+                entries = [
+                    CookieEntry(
+                        name=c["name"],
+                        value=c["value"],
+                        domain=c["domain"],
+                        path=c.get("path", "/"),
+                        secure=c.get("secure", False),
+                        http_only=c.get("httpOnly", False),
+                        same_site=c.get("sameSite"),
+                        expires=c.get("expires"),
+                    )
+                    for c in raw_cookies
+                    if ".amazon.co.jp" in c["domain"] or "amazon.co.jp" == c["domain"]
+                ]
+
+                if not entries:
+                    raise RuntimeError(
+                        "Amazon関連のCookieが取得できませんでした。"
+                        "ログインが正しく完了したか確認してください。"
+                    )
+
+                logger.info(
+                    "Filtered %d Amazon cookies (from %d total)",
+                    len(entries),
+                    len(raw_cookies),
+                )
+
+            finally:
+                await browser.close()
+
+        return await self.save_cookies(entries)

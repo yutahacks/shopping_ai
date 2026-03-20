@@ -81,6 +81,21 @@ function CookieStep({ onNext }: { onNext: () => void }) {
   const [cookieJson, setCookieJson] = useState("");
   const [status, setStatus] = useState<CookieStatus | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [showManual, setShowManual] = useState(false);
+
+  const handleBrowserLogin = async () => {
+    setLoginLoading(true);
+    try {
+      const newStatus = await api.settings.browserLogin();
+      setStatus(newStatus);
+      toast.success("ログインに成功しました。Cookieを自動取得しました。");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "ブラウザログインに失敗しました");
+    } finally {
+      setLoginLoading(false);
+    }
+  };
 
   const handleUpload = async () => {
     setLoading(true);
@@ -105,8 +120,8 @@ function CookieStep({ onNext }: { onNext: () => void }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Amazon Freshを操作するためにAmazon.co.jpのCookieが必要です。
-          ブラウザ拡張機能（EditThisCookieなど）でエクスポートしたJSON配列を貼り付けてください。
+          Amazon Freshを操作するためにAmazon.co.jpへのログインが必要です。
+          ボタンを押すとブラウザが開くので、通常通りログインしてください。
         </p>
 
         {status?.is_valid && (
@@ -116,18 +131,52 @@ function CookieStep({ onNext }: { onNext: () => void }) {
           </div>
         )}
 
-        <Textarea
-          placeholder='[{"name": "session-id", "value": "...", "domain": ".amazon.co.jp", ...}]'
-          value={cookieJson}
-          onChange={(e) => setCookieJson(e.target.value)}
-          rows={6}
-          className="font-mono text-xs"
-        />
+        <Button
+          onClick={handleBrowserLogin}
+          disabled={loginLoading || loading}
+          className="w-full"
+          size="lg"
+        >
+          {loginLoading ? "ブラウザでログイン中..." : "Amazonにブラウザでログイン"}
+        </Button>
 
-        <div className="flex gap-3">
-          <Button onClick={handleUpload} disabled={loading || !cookieJson.trim()} className="flex-1">
-            {loading ? "アップロード中..." : "アップロード"}
-          </Button>
+        {loginLoading && (
+          <p className="text-xs text-muted-foreground text-center">
+            ブラウザが開きます。Amazonにログインしてください（2FA対応）。
+            ログイン完了後、自動的にCookieが保存されます。
+          </p>
+        )}
+
+        <div className="border-t pt-3">
+          <button
+            onClick={() => setShowManual(!showManual)}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {showManual ? "▼ 手動アップロードを閉じる" : "▶ Cookie JSONを手動でアップロード"}
+          </button>
+
+          {showManual && (
+            <div className="mt-3 space-y-3">
+              <Textarea
+                placeholder='[{"name": "session-id", "value": "...", "domain": ".amazon.co.jp", ...}]'
+                value={cookieJson}
+                onChange={(e) => setCookieJson(e.target.value)}
+                rows={6}
+                className="font-mono text-xs"
+              />
+              <Button
+                onClick={handleUpload}
+                disabled={loading || !cookieJson.trim()}
+                variant="outline"
+                className="w-full"
+              >
+                {loading ? "アップロード中..." : "JSONをアップロード"}
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end">
           <Button variant="outline" onClick={onNext}>
             {status?.is_valid ? "次へ →" : "スキップ →"}
           </Button>

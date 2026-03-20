@@ -147,6 +147,11 @@ export const api = {
         body: JSON.stringify({ cookies }),
       }),
 
+    browserLogin: () =>
+      fetchJSON<CookieStatus>("/api/settings/cookies/login", {
+        method: "POST",
+      }),
+
     deleteCookies: () =>
       fetchJSON<{ message: string }>("/api/settings/cookies", {
         method: "DELETE",
