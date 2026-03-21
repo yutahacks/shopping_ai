@@ -13,8 +13,12 @@ class PlanRequest(BaseModel):
         context: Optional context such as number of people or budget.
     """
 
-    request: str = Field(..., description="自然言語でのショッピングリクエスト", min_length=1)
-    context: str | None = Field(None, description="追加コンテキスト（人数、予算など）")
+    request: str = Field(
+        ..., description="自然言語でのショッピングリクエスト", min_length=1, max_length=500
+    )
+    context: str | None = Field(
+        None, description="追加コンテキスト（人数、予算など）", max_length=1000
+    )
 
 
 class ShoppingItem(BaseModel):

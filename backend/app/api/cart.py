@@ -2,11 +2,12 @@
 
 from collections.abc import AsyncGenerator
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from app.automation.browser import BrowserFactory
 from app.models.cart import CartExecutionRequest, CartExecutionResult
+from app.rate_limit import limiter
 from app.services.cart_executor import CartExecutorService
 from app.services.cookie_manager import CookieManagerService
 from app.storage.history_repo import ShoppingHistoryRepository
@@ -20,13 +21,14 @@ _executor = CartExecutorService(_cookie_manager, _browser_factory, _history_repo
 
 
 @router.post("/execute", response_model=CartExecutionResult)
-async def execute_cart(request: CartExecutionRequest) -> CartExecutionResult:
+@limiter.limit("5/minute")
+async def execute_cart(request: Request, cart_request: CartExecutionRequest) -> CartExecutionResult:
     """Start cart execution for a shopping plan."""
-    plan = await _history_repo.get_plan(request.session_id)
+    plan = await _history_repo.get_plan(cart_request.session_id)
     if plan is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    if not request.dry_run:
+    if not cart_request.dry_run:
         cookie_status = await _cookie_manager.get_status()
         if not cookie_status.is_valid:
             raise HTTPException(
@@ -37,8 +39,8 @@ async def execute_cart(request: CartExecutionRequest) -> CartExecutionResult:
                 ),
             )
 
-    result = await _executor.start_execution(plan, dry_run=request.dry_run)
-    await _history_repo.mark_executed(request.session_id)
+    result = await _executor.start_execution(plan, dry_run=cart_request.dry_run)
+    await _history_repo.mark_executed(cart_request.session_id)
     return result
 
 

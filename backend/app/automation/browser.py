@@ -37,15 +37,18 @@ class BrowserFactory:
             A configured BrowserContext instance.
         """
         async with async_playwright() as playwright:
+            launch_args = [
+                "--disable-dev-shm-usage",
+                "--disable-blink-features=AutomationControlled",
+                "--lang=ja-JP",
+            ]
+            # Only disable sandbox in headless/container mode
+            if settings.browser_headless:
+                launch_args.extend(["--no-sandbox", "--disable-setuid-sandbox"])
+
             browser: Browser = await playwright.chromium.launch(
                 headless=settings.browser_headless,
-                args=[
-                    "--no-sandbox",
-                    "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-blink-features=AutomationControlled",
-                    "--lang=ja-JP",
-                ],
+                args=launch_args,
             )
             try:
                 context: BrowserContext = await browser.new_context(

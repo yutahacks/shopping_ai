@@ -21,7 +21,7 @@ function getAuthHeaders(): Record<string, string> {
     "Content-Type": "application/json",
   };
   if (typeof window !== "undefined") {
-    const token = localStorage.getItem("api_secret_key");
+    const token = sessionStorage.getItem("api_secret_key");
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }

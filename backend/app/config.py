@@ -38,6 +38,8 @@ class Settings(BaseSettings):
 
     # Security
     api_secret_key: str = ""
+    allow_unauthenticated: bool = False
+    cors_origins: str = "http://localhost:3000"
 
     # Logging
     log_level: str = "INFO"

@@ -11,6 +11,7 @@ from collections.abc import AsyncGenerator
 
 from app.automation.amazon_fresh import AmazonFreshAutomator
 from app.automation.browser import BrowserFactory
+from app.automation.browser_semaphore import get_browser_semaphore
 from app.models.cart import (
     CartExecutionResult,
     CartItemResult,
@@ -34,6 +35,7 @@ class CartExecutorService:
         _cookie_manager: Service for loading browser cookies.
         _browser_factory: Factory for creating browser pages.
         _history_repo: Repository for persisting execution results.
+        _browser_semaphore: Semaphore limiting concurrent browser instances.
     """
 
     def __init__(
@@ -52,6 +54,7 @@ class CartExecutorService:
         self._cookie_manager = cookie_manager
         self._browser_factory = browser_factory
         self._history_repo = history_repo or ShoppingHistoryRepository()
+        self._browser_semaphore = get_browser_semaphore()
 
     async def start_execution(
         self,
@@ -177,7 +180,7 @@ class CartExecutorService:
             rules_manager = RulesManagerService()
             rules = await rules_manager.get_rules()
 
-            async with self._browser_factory.create_page(cookies) as page:
+            async with self._browser_semaphore, self._browser_factory.create_page(cookies) as page:
                 automator = AmazonFreshAutomator(page, rules)
 
                 # Verify login status

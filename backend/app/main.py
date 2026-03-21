@@ -1,7 +1,7 @@
 """FastAPI application entry point for the Shopping AI backend.
 
-Configures the application with CORS middleware, API routes, and
-database initialization on startup.
+Configures the application with CORS middleware, rate limiting,
+API routes, and database initialization on startup.
 """
 
 import logging
@@ -11,13 +11,25 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from starlette.responses import JSONResponse
 
 from app.api.router import api_router
 from app.config import settings
 from app.middleware.auth import BearerAuthMiddleware
+from app.rate_limit import limiter
 from app.storage.database import init_db
 
 logger = logging.getLogger(__name__)
+
+
+def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    """Return a JSON 429 response when rate limit is exceeded."""
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "リクエストが多すぎます。しばらく待ってからお試しください。"},
+    )
 
 
 def _setup_logging() -> None:
@@ -81,7 +93,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Starting Shopping AI Backend v%s", app.version)
     logger.info("OpenAI model: %s", settings.openai_model)
     logger.info("Data directory: %s", settings.data_dir)
-    auth_status = "enabled (API_SECRET_KEY set)" if settings.api_secret_key else "disabled"
+    if settings.api_secret_key:
+        auth_status = "enabled (API_SECRET_KEY set)"
+    elif settings.allow_unauthenticated:
+        auth_status = "disabled (ALLOW_UNAUTHENTICATED=true)"
+    else:
+        auth_status = "BLOCKED (API_SECRET_KEY not set, ALLOW_UNAUTHENTICATED not set)"
     logger.info("Auth: %s", auth_status)
     _copy_defaults()
     await init_db()
@@ -97,13 +114,21 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
+app.add_middleware(SlowAPIMiddleware)
+
 app.add_middleware(BearerAuthMiddleware)
+
+# CORS — use environment variable for origins
+cors_origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 app.include_router(api_router)

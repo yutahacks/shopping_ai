@@ -1,8 +1,9 @@
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from app.models.settings import CookieStatus, CookieUploadRequest
+from app.rate_limit import limiter
 from app.services.cookie_manager import CookieManagerService
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,8 @@ async def upload_cookies(request: CookieUploadRequest) -> CookieStatus:
 
 
 @router.post("/cookies/login", response_model=CookieStatus)
-async def browser_login() -> CookieStatus:
+@limiter.limit("2/minute")
+async def browser_login(request: Request) -> CookieStatus:
     """Launch a headed browser for the user to log in to Amazon.
 
     Opens a visible Chromium window. The user logs in manually

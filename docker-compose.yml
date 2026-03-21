@@ -17,7 +17,9 @@ services:
       - RULES_PATH=/data/rules.yaml
       - COOKIES_PATH=/data/cookies.json
       - BROWSER_HEADLESS=true
-      - API_SECRET_KEY=${API_SECRET_KEY:-}
+      - API_SECRET_KEY=${API_SECRET_KEY}
+      - ALLOW_UNAUTHENTICATED=${ALLOW_UNAUTHENTICATED:-false}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
     command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   frontend:

@@ -2,10 +2,11 @@
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.models.shopping import PlanRequest, ShoppingItem, ShoppingPlan, ShoppingSession
+from app.rate_limit import limiter
 from app.services.planner import ShoppingPlannerService
 from app.services.profile_manager import ProfileManagerService
 from app.services.rules_manager import RulesManagerService
@@ -40,7 +41,8 @@ class ReuseSessionRequest(BaseModel):
 
 
 @router.post("/plan", response_model=ShoppingPlan)
-async def create_shopping_plan(request: PlanRequest) -> ShoppingPlan:
+@limiter.limit("10/minute")
+async def create_shopping_plan(request: Request, plan_request: PlanRequest) -> ShoppingPlan:
     """Generate a shopping plan from a natural language request.
 
     The plan considers the household profile, shopping rules, and
@@ -55,7 +57,7 @@ async def create_shopping_plan(request: PlanRequest) -> ShoppingPlan:
     history_section = await _build_history_section()
 
     plan = await _planner.create_plan(
-        request, rules, profile_section=profile_section, history_section=history_section
+        plan_request, rules, profile_section=profile_section, history_section=history_section
     )
     await _history_repo.save_plan(plan)
     return plan

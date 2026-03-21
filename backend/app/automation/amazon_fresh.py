@@ -361,8 +361,12 @@ class AmazonFreshAutomator:
             product_url = f"https://www.amazon.co.jp{product_url}"
 
         # Safety check: never navigate to checkout pages
-        forbidden_paths = ["/checkout", "/buy", "/order", "/purchase", "/payment"]
-        if any(path in product_url for path in forbidden_paths):
+        from urllib.parse import urlparse
+
+        parsed_path = urlparse(product_url).path.lower()
+        path_segments = parsed_path.split("/")
+        forbidden_segments = {"checkout", "buy", "order", "purchase", "payment"}
+        if forbidden_segments & set(path_segments):
             logger.warning("Blocked navigation to forbidden URL: %s", product_url)
             return False
 

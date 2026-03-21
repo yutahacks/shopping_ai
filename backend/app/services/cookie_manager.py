@@ -319,6 +319,14 @@ class CookieManagerService:
             RuntimeError: If no compatible browser could be launched, login
                 verification fails, or no cookies captured.
         """
+
+        from app.automation.browser_semaphore import get_browser_semaphore
+
+        async with get_browser_semaphore():
+            return await self._browser_login_inner()
+
+    async def _browser_login_inner(self) -> CookieStatus:
+        """Inner implementation of browser_login (runs under semaphore)."""
         import shutil
         import signal
         import tempfile
@@ -460,6 +468,9 @@ class CookieManagerService:
                     logger.info("Captured %d cookies from browser", len(raw_cookies))
 
                     # Convert to our CookieEntry model — only Amazon cookies
+                    def _is_amazon_domain(domain: str) -> bool:
+                        return domain == "amazon.co.jp" or domain.endswith(".amazon.co.jp")
+
                     entries = [
                         CookieEntry(
                             name=c["name"],
@@ -472,8 +483,7 @@ class CookieManagerService:
                             expires=c.get("expires"),
                         )
                         for c in raw_cookies
-                        if ".amazon.co.jp" in c.get("domain", "")
-                        or c.get("domain", "") == "amazon.co.jp"
+                        if _is_amazon_domain(c.get("domain", ""))
                     ]
 
                     if not entries:
