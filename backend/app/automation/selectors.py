@@ -18,9 +18,11 @@ class AmazonFreshSelectors:
 
     # Product listings
     SEARCH_RESULTS = "[data-component-type='s-search-result']"
-    PRODUCT_TITLE = "h2 .a-text-normal"
+    PRODUCT_TITLE = "h2.a-text-normal"
     PRODUCT_PRICE = ".a-price .a-offscreen"
-    ADD_TO_CART_BUTTON = "[data-action='add-to-cart']"
+    ADD_TO_CART_BUTTON = (
+        "[data-action='fresh-add-to-cart'] input.a-button-input, [data-action='add-to-cart']"
+    )
     ADD_TO_CART_SUBMIT = "#add-to-cart-button"
 
     # Product page

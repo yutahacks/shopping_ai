@@ -164,7 +164,19 @@ class AmazonFreshAutomator:
         try:
             await self._page.wait_for_selector(S.SEARCH_RESULTS, timeout=10000)
         except PlaywrightTimeoutError:
-            logger.warning("No search results found for '%s'", query)
+            current_url = self._page.url
+            title = await self._page.title()
+            logger.warning(
+                "No search results for '%s' — page title: '%s', URL: %s",
+                query,
+                title,
+                current_url,
+            )
+            content = await self._page.content()
+            if "captcha" in content.lower() or "robot" in content.lower():
+                logger.error("Bot detection triggered (CAPTCHA/robot check)")
+            elif "signin" in current_url.lower() or "/ap/" in current_url:
+                logger.error("Redirected to login page — cookies may be invalid")
             return []
 
         results = await self._page.query_selector_all(S.SEARCH_RESULTS)
