@@ -81,6 +81,21 @@ function CookieStep({ onNext }: { onNext: () => void }) {
   const [cookieJson, setCookieJson] = useState("");
   const [status, setStatus] = useState<CookieStatus | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [showManual, setShowManual] = useState(false);
+
+  const handleBrowserLogin = async () => {
+    setLoginLoading(true);
+    try {
+      const newStatus = await api.settings.browserLogin();
+      setStatus(newStatus);
+      toast.success("ログインに成功しました。Cookieを自動取得しました。");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "ブラウザログインに失敗しました");
+    } finally {
+      setLoginLoading(false);
+    }
+  };
 
   const handleUpload = async () => {
     setLoading(true);
@@ -105,8 +120,8 @@ function CookieStep({ onNext }: { onNext: () => void }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Amazon Freshを操作するためにAmazon.co.jpのCookieが必要です。
-          ブラウザ拡張機能（EditThisCookieなど）でエクスポートしたJSON配列を貼り付けてください。
+          Amazon Freshを操作するためにAmazon.co.jpへのログインが必要です。
+          ボタンを押すとブラウザが開くので、通常通りログインしてください。
         </p>
 
         {status?.is_valid && (
@@ -116,18 +131,52 @@ function CookieStep({ onNext }: { onNext: () => void }) {
           </div>
         )}
 
-        <Textarea
-          placeholder='[{"name": "session-id", "value": "...", "domain": ".amazon.co.jp", ...}]'
-          value={cookieJson}
-          onChange={(e) => setCookieJson(e.target.value)}
-          rows={6}
-          className="font-mono text-xs"
-        />
+        <Button
+          onClick={handleBrowserLogin}
+          disabled={loginLoading || loading}
+          className="w-full"
+          size="lg"
+        >
+          {loginLoading ? "ブラウザでログイン中..." : "Amazonにブラウザでログイン"}
+        </Button>
 
-        <div className="flex gap-3">
-          <Button onClick={handleUpload} disabled={loading || !cookieJson.trim()} className="flex-1">
-            {loading ? "アップロード中..." : "アップロード"}
-          </Button>
+        {loginLoading && (
+          <p className="text-xs text-muted-foreground text-center">
+            ブラウザが開きます。Amazonにログインしてください（2FA対応）。
+            ログイン完了後、自動的にCookieが保存されます。
+          </p>
+        )}
+
+        <div className="border-t pt-3">
+          <button
+            onClick={() => setShowManual(!showManual)}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {showManual ? "▼ 手動アップロードを閉じる" : "▶ Cookie JSONを手動でアップロード"}
+          </button>
+
+          {showManual && (
+            <div className="mt-3 space-y-3">
+              <Textarea
+                placeholder='[{"name": "session-id", "value": "...", "domain": ".amazon.co.jp", ...}]'
+                value={cookieJson}
+                onChange={(e) => setCookieJson(e.target.value)}
+                rows={6}
+                className="font-mono text-xs"
+              />
+              <Button
+                onClick={handleUpload}
+                disabled={loading || !cookieJson.trim()}
+                variant="outline"
+                className="w-full"
+              >
+                {loading ? "アップロード中..." : "JSONをアップロード"}
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end">
           <Button variant="outline" onClick={onNext}>
             {status?.is_valid ? "次へ →" : "スキップ →"}
           </Button>
@@ -156,6 +205,10 @@ function ProfileStep({ onNext, onBack }: { onNext: () => void; onBack: () => voi
   };
 
   const handleSave = async () => {
+    if (weeklyBudget && (Number(weeklyBudget) < 0 || !Number.isInteger(Number(weeklyBudget)))) {
+      toast.error("週間予算は0以上の整数で入力してください");
+      return;
+    }
     setSaving(true);
     try {
       const profile: HouseholdProfile = {
@@ -171,6 +224,10 @@ function ProfileStep({ onNext, onBack }: { onNext: () => void; onBack: () => voi
     } finally {
       setSaving(false);
     }
+  };
+
+  const preventSubmit = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") e.preventDefault();
   };
 
   return (
@@ -200,7 +257,12 @@ function ProfileStep({ onNext, onBack }: { onNext: () => void; onBack: () => voi
             placeholder="名前"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addMember())}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addMember();
+              }
+            }}
             className="flex-1"
           />
           <select
@@ -212,7 +274,7 @@ function ProfileStep({ onNext, onBack }: { onNext: () => void; onBack: () => voi
             <option value="child">子供</option>
             <option value="infant">乳幼児</option>
           </select>
-          <Button variant="outline" onClick={addMember}>追加</Button>
+          <Button type="button" variant="outline" onClick={addMember}>追加</Button>
         </div>
 
         <div className="space-y-2">
@@ -221,6 +283,7 @@ function ProfileStep({ onNext, onBack }: { onNext: () => void; onBack: () => voi
             placeholder="例：和食中心、洋食多め"
             value={foodPreferences}
             onChange={(e) => setFoodPreferences(e.target.value)}
+            onKeyDown={preventSubmit}
           />
         </div>
 
@@ -230,14 +293,22 @@ function ProfileStep({ onNext, onBack }: { onNext: () => void; onBack: () => voi
             type="number"
             placeholder="円"
             value={weeklyBudget}
-            onChange={(e) => setWeeklyBudget(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === "" || (/^\d+$/.test(v) && Number(v) >= 0)) {
+                setWeeklyBudget(v);
+              }
+            }}
+            onKeyDown={preventSubmit}
+            min={0}
+            step={1}
             className="w-40"
           />
         </div>
 
         <div className="flex gap-3">
-          <Button variant="outline" onClick={onBack}>← 戻る</Button>
-          <Button onClick={handleSave} disabled={saving} className="flex-1">
+          <Button type="button" variant="outline" onClick={onBack}>← 戻る</Button>
+          <Button type="button" onClick={handleSave} disabled={saving} className="flex-1">
             {saving ? "保存中..." : members.length > 0 ? "保存して次へ →" : "スキップ →"}
           </Button>
         </div>

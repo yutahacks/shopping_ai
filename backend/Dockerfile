@@ -24,11 +24,17 @@ RUN uv run playwright install-deps chromium
 # Copy source code
 COPY app/ ./app/
 
+# Create non-root user
+RUN groupadd --system appuser && useradd --system --gid appuser appuser \
+    && mkdir -p /data && chown -R appuser:appuser /data /app
+
 ENV PYTHONUNBUFFERED=1
 ENV DATA_DIR=/data
 ENV DATABASE_PATH=/data/shopping.db
 ENV RULES_PATH=/data/rules.yaml
 ENV COOKIES_PATH=/data/cookies.json
+
+USER appuser
 
 EXPOSE 8000
 

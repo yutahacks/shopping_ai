@@ -12,6 +12,13 @@ from playwright.async_api import Browser, BrowserContext, Page, async_playwright
 from app.config import settings
 from app.models.settings import CookieEntry
 
+# Realistic, up-to-date User-Agent to avoid bot detection by Amazon.
+_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/131.0.0.0 Safari/537.36"
+)
+
 
 class BrowserFactory:
     """Creates and manages Playwright browser instances."""
@@ -30,25 +37,29 @@ class BrowserFactory:
             A configured BrowserContext instance.
         """
         async with async_playwright() as playwright:
+            launch_args = [
+                "--disable-dev-shm-usage",
+                "--disable-blink-features=AutomationControlled",
+                "--lang=ja-JP",
+            ]
+            # Only disable sandbox in headless/container mode
+            if settings.browser_headless:
+                launch_args.extend(["--no-sandbox", "--disable-setuid-sandbox"])
+
             browser: Browser = await playwright.chromium.launch(
                 headless=settings.browser_headless,
-                args=[
-                    "--no-sandbox",
-                    "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--lang=ja-JP",
-                ],
+                args=launch_args,
             )
             try:
                 context: BrowserContext = await browser.new_context(
                     locale="ja-JP",
                     timezone_id="Asia/Tokyo",
-                    user_agent=(
-                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                        "AppleWebKit/537.36 (KHTML, like Gecko) "
-                        "Chrome/120.0.0.0 Safari/537.36"
-                    ),
+                    user_agent=_USER_AGENT,
                     viewport={"width": 1280, "height": 800},
+                )
+                # Hide navigator.webdriver to evade bot detection
+                await context.add_init_script(
+                    "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
                 )
 
                 if cookies:

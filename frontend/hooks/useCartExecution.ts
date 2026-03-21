@@ -25,10 +25,25 @@ export function useCartExecution() {
         const event: CartStatusEvent = JSON.parse(e.data);
         setEvents((prev) => [...prev, event]);
 
+        if (event.event_type === "item_processed" && event.item_result) {
+          const item = event.item_result;
+          setResult((prev) => {
+            if (!prev) return prev;
+            const newItems = [...prev.items, item];
+            return {
+              ...prev,
+              status: "running",
+              items: newItems,
+              added_count: prev.added_count + (item.status === "added" ? 1 : 0),
+              failed_count: prev.failed_count + (item.status === "error" || item.status === "not_found" ? 1 : 0),
+              skipped_count: prev.skipped_count + (item.status === "skipped" ? 1 : 0),
+            };
+          });
+        }
+
         if (event.event_type === "completed" || event.event_type === "error") {
           eventSource.close();
           setLoading(false);
-          // Update final result from the last event
           setResult((prev) =>
             prev
               ? {

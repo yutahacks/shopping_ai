@@ -74,7 +74,7 @@ class AmazonFreshAutomator:
 
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                result = await self._try_search_and_add(item_name, parsed_qty)
+                result = await self._try_search_and_add(item_name, parsed_qty, quantity)
                 if result.status != "error" or attempt == MAX_RETRIES:
                     return result
                 logger.warning(
@@ -118,7 +118,9 @@ class AmazonFreshAutomator:
             error_message="リトライ回数を超過しました",
         )
 
-    async def _try_search_and_add(self, item_name: str, quantity: int) -> CartItemResult:
+    async def _try_search_and_add(
+        self, item_name: str, quantity: int, quantity_raw: str = ""
+    ) -> CartItemResult:
         """Single attempt to search and add an item."""
         candidates = await self._search_products(item_name)
         if not candidates:
@@ -128,7 +130,7 @@ class AmazonFreshAutomator:
                 error_message=f"'{item_name}'の検索結果が見つかりませんでした",
             )
 
-        selected = self._select_best_product(candidates, item_name)
+        selected = self._select_best_product(candidates, item_name, quantity_raw)
         if selected is None:
             return CartItemResult(
                 item_name=item_name,
@@ -164,7 +166,19 @@ class AmazonFreshAutomator:
         try:
             await self._page.wait_for_selector(S.SEARCH_RESULTS, timeout=10000)
         except PlaywrightTimeoutError:
-            logger.warning("No search results found for '%s'", query)
+            current_url = self._page.url
+            title = await self._page.title()
+            logger.warning(
+                "No search results for '%s' — page title: '%s', URL: %s",
+                query,
+                title,
+                current_url,
+            )
+            content = await self._page.content()
+            if "captcha" in content.lower() or "robot" in content.lower():
+                logger.error("Bot detection triggered (CAPTCHA/robot check)")
+            elif "signin" in current_url.lower() or "/ap/" in current_url:
+                logger.error("Redirected to login page — cookies may be invalid")
             return []
 
         results = await self._page.query_selector_all(S.SEARCH_RESULTS)
@@ -202,28 +216,81 @@ class AmazonFreshAutomator:
         return candidates
 
     def _select_best_product(
-        self, candidates: list[ProductCandidate], item_name: str = ""
+        self,
+        candidates: list[ProductCandidate],
+        item_name: str = "",
+        quantity_raw: str = "",
     ) -> ProductCandidate | None:
-        """Apply brand and price rules to select the best product."""
+        """Apply spec matching, brand rules, and price rules to select the best product."""
         if not candidates:
             return None
 
-        # Apply brand rules (with category matching)
-        brand_filtered = self._apply_brand_rules(candidates, item_name)
-        pool = brand_filtered if brand_filtered else candidates
+        pool = list(candidates)
 
-        # Filter by max price
+        # 1. Exclude frozen products unless explicitly requested
+        if "冷凍" not in item_name:
+            non_frozen = [c for c in pool if "冷凍" not in c.title]
+            if non_frozen:
+                pool = non_frozen
+
+        # 2. Match size/spec keywords from quantity string
+        spec_keywords = self._extract_spec_keywords(quantity_raw)
+        if spec_keywords:
+            spec_matched = [c for c in pool if any(kw in c.title for kw in spec_keywords)]
+            if spec_matched:
+                logger.debug(
+                    "Spec filter: %d → %d candidates (keywords: %s)",
+                    len(pool),
+                    len(spec_matched),
+                    spec_keywords,
+                )
+                pool = spec_matched
+
+        # 3. Apply brand rules (with category matching)
+        brand_filtered = self._apply_brand_rules(pool, item_name)
+        if brand_filtered:
+            pool = brand_filtered
+
+        # 4. Filter by max price
         if self._rules.price.max_price_per_item is not None:
-            pool = [
+            price_filtered = [
                 c
                 for c in pool
                 if c.price is None or c.price <= self._rules.price.max_price_per_item
             ]
-            if not pool:
-                pool = candidates  # fallback
+            if price_filtered:
+                pool = price_filtered
 
-        # Apply price strategy
+        # 5. Apply price strategy
         return self._apply_price_strategy(pool)
+
+    @staticmethod
+    def _extract_spec_keywords(quantity_raw: str) -> list[str]:
+        """Extract size/spec keywords from a quantity string.
+
+        Examples:
+            "1パック（10個）" → ["10個"]
+            "2本（1L）" → ["1L"]
+            "800g" → ["800g"]
+            "3袋" → []  (no spec info, just count)
+        """
+        keywords: list[str] = []
+        # Match content in parentheses: （1L）, (10個)
+        paren_matches = re.findall(r"[（(]([^）)]+)[）)]", quantity_raw)
+        for m in paren_matches:
+            # Extract size specs like "1L", "10個", "900g"
+            specs = re.findall(r"\d+(?:\.\d+)?(?:L|ml|g|kg|個|枚|食)", m, re.IGNORECASE)
+            keywords.extend(specs)
+
+        # Match standalone size specs not in parens: "800g", "1L"
+        standalone = re.findall(
+            r"(?<!\d)\d+(?:\.\d+)?(?:L|ml|g|kg)(?!\w)", quantity_raw, re.IGNORECASE
+        )
+        for s in standalone:
+            if s not in keywords:
+                keywords.append(s)
+
+        return keywords
 
     def _apply_brand_rules(
         self, candidates: list[ProductCandidate], item_name: str = ""
@@ -294,8 +361,12 @@ class AmazonFreshAutomator:
             product_url = f"https://www.amazon.co.jp{product_url}"
 
         # Safety check: never navigate to checkout pages
-        forbidden_paths = ["/checkout", "/buy", "/order", "/purchase", "/payment"]
-        if any(path in product_url for path in forbidden_paths):
+        from urllib.parse import urlparse
+
+        parsed_path = urlparse(product_url).path.lower()
+        path_segments = parsed_path.split("/")
+        forbidden_segments = {"checkout", "buy", "order", "purchase", "payment"}
+        if forbidden_segments & set(path_segments):
             logger.warning("Blocked navigation to forbidden URL: %s", product_url)
             return False
 

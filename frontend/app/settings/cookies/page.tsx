@@ -14,10 +14,25 @@ export default function CookiesPage() {
   const [status, setStatus] = useState<CookieStatus | null>(null);
   const [cookieJson, setCookieJson] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [showManual, setShowManual] = useState(false);
 
   useEffect(() => {
     api.settings.getCookieStatus().then(setStatus);
   }, []);
+
+  const handleBrowserLogin = async () => {
+    setLoginLoading(true);
+    try {
+      const newStatus = await api.settings.browserLogin();
+      setStatus(newStatus);
+      toast.success("ログインに成功しました。Cookieを自動取得しました。");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "ブラウザログインに失敗しました");
+    } finally {
+      setLoginLoading(false);
+    }
+  };
 
   const handleUpload = async () => {
     setLoading(true);
@@ -79,28 +94,60 @@ export default function CookiesPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Cookie JSONをアップロード</CardTitle>
+          <CardTitle className="text-base">ブラウザでログイン</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            ブラウザ拡張機能（例: EditThisCookie）でエクスポートしたAmazon.co.jpの
-            Cookie JSONを貼り付けてください。
+            ボタンを押すとブラウザが開きます。Amazon.co.jpに通常通りログインしてください。
+            ログイン完了後、Cookieが自動的に保存されます。（2FA/CAPTCHA対応）
           </p>
-          <Textarea
-            placeholder='[{"name": "session-id", "value": "...", "domain": ".amazon.co.jp", ...}]'
-            value={cookieJson}
-            onChange={(e) => setCookieJson(e.target.value)}
-            rows={8}
-            className="font-mono text-xs"
-          />
           <Button
-            onClick={handleUpload}
-            disabled={loading || !cookieJson.trim()}
+            onClick={handleBrowserLogin}
+            disabled={loginLoading || loading}
             className="w-full"
+            size="lg"
           >
-            {loading ? "アップロード中..." : "アップロード"}
+            {loginLoading ? "ブラウザでログイン中..." : "Amazonにブラウザでログイン"}
           </Button>
+          {loginLoading && (
+            <p className="text-xs text-muted-foreground text-center">
+              ブラウザが開いています。ログインが完了するまでお待ちください...
+            </p>
+          )}
         </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <button
+            onClick={() => setShowManual(!showManual)}
+            className="text-base font-semibold text-left w-full flex items-center gap-2"
+          >
+            {showManual ? "▼" : "▶"} Cookie JSONを手動アップロード
+          </button>
+        </CardHeader>
+        {showManual && (
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              ブラウザ拡張機能（例: EditThisCookie）でエクスポートしたAmazon.co.jpの
+              Cookie JSONを貼り付けてください。
+            </p>
+            <Textarea
+              placeholder='[{"name": "session-id", "value": "...", "domain": ".amazon.co.jp", ...}]'
+              value={cookieJson}
+              onChange={(e) => setCookieJson(e.target.value)}
+              rows={8}
+              className="font-mono text-xs"
+            />
+            <Button
+              onClick={handleUpload}
+              disabled={loading || !cookieJson.trim()}
+              className="w-full"
+            >
+              {loading ? "アップロード中..." : "アップロード"}
+            </Button>
+          </CardContent>
+        )}
       </Card>
     </main>
   );

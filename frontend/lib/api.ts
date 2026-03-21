@@ -21,7 +21,7 @@ function getAuthHeaders(): Record<string, string> {
     "Content-Type": "application/json",
   };
   if (typeof window !== "undefined") {
-    const token = localStorage.getItem("api_secret_key");
+    const token = sessionStorage.getItem("api_secret_key");
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }
@@ -145,6 +145,12 @@ export const api = {
       fetchJSON<CookieStatus>("/api/settings/cookies", {
         method: "POST",
         body: JSON.stringify({ cookies }),
+      }),
+
+    browserLogin: () =>
+      fetchJSON<CookieStatus>("/api/settings/cookies/login", {
+        method: "POST",
+        signal: AbortSignal.timeout(200000), // 200s — user logs in manually
       }),
 
     deleteCookies: () =>
