@@ -71,6 +71,27 @@ class TestParseQuantity:
         assert AmazonFreshAutomator._parse_quantity("0個") == 1
 
 
+class TestExtractSpecKeywords:
+    """Tests for spec keyword extraction from quantity strings."""
+
+    def test_parenthesized_count(self) -> None:
+        assert AmazonFreshAutomator._extract_spec_keywords("1パック（10個）") == ["10個"]
+
+    def test_parenthesized_volume(self) -> None:
+        assert AmazonFreshAutomator._extract_spec_keywords("2本（1L）") == ["1L"]
+
+    def test_standalone_weight(self) -> None:
+        assert AmazonFreshAutomator._extract_spec_keywords("800g") == ["800g"]
+
+    def test_plain_count_no_spec(self) -> None:
+        # "3袋" has no spec info, just count
+        assert AmazonFreshAutomator._extract_spec_keywords("3袋") == []
+
+    def test_multiple_specs(self) -> None:
+        result = AmazonFreshAutomator._extract_spec_keywords("1パック（900g）")
+        assert "900g" in result
+
+
 class TestSelectBestProduct:
     """Tests for product selection logic."""
 
@@ -143,6 +164,59 @@ class TestSelectBestProduct:
         )
         assert result is not None
         assert "パンテーン" in result.title
+
+    def test_frozen_exclusion(self, default_rules: ShoppingRules) -> None:
+        """Frozen products are excluded unless explicitly requested."""
+        candidates = [
+            ProductCandidate(title="冷凍 豚こま切れ肉 800g", price=500, asin="A1", element_index=0),
+            ProductCandidate(title="豚こま切れ肉 800g", price=600, asin="A2", element_index=1),
+        ]
+        automator = AmazonFreshAutomator.__new__(AmazonFreshAutomator)
+        automator._rules = default_rules
+        result = automator._select_best_product(candidates, item_name="豚こま切れ肉")
+        assert result is not None
+        assert "冷凍" not in result.title
+
+    def test_frozen_included_when_requested(self, default_rules: ShoppingRules) -> None:
+        """Frozen products are kept when item name includes 冷凍."""
+        candidates = [
+            ProductCandidate(title="冷凍 豚こま切れ肉 800g", price=500, asin="A1", element_index=0),
+            ProductCandidate(title="豚こま切れ肉 800g", price=600, asin="A2", element_index=1),
+        ]
+        automator = AmazonFreshAutomator.__new__(AmazonFreshAutomator)
+        automator._rules = default_rules
+        result = automator._select_best_product(candidates, item_name="冷凍豚こま切れ肉")
+        assert result is not None
+        assert result.price == 500  # cheapest, frozen is allowed
+
+    def test_spec_keyword_filtering(self, default_rules: ShoppingRules) -> None:
+        """Products matching spec keywords from quantity are preferred."""
+        candidates = [
+            ProductCandidate(title="明治 牛乳 450ml", price=200, asin="A1", element_index=0),
+            ProductCandidate(title="明治 牛乳 1L", price=300, asin="A2", element_index=1),
+            ProductCandidate(title="明治 牛乳 200ml", price=100, asin="A3", element_index=2),
+        ]
+        automator = AmazonFreshAutomator.__new__(AmazonFreshAutomator)
+        automator._rules = default_rules
+        result = automator._select_best_product(
+            candidates, item_name="牛乳", quantity_raw="2本（1L）"
+        )
+        assert result is not None
+        assert "1L" in result.title
+
+    def test_spec_keyword_egg_count(self, default_rules: ShoppingRules) -> None:
+        """Egg count spec is respected."""
+        candidates = [
+            ProductCandidate(title="たまご 6個入り", price=200, asin="A1", element_index=0),
+            ProductCandidate(title="たまご 10個入り", price=300, asin="A2", element_index=1),
+        ]
+        automator = AmazonFreshAutomator.__new__(AmazonFreshAutomator)
+        automator._rules = default_rules
+        result = automator._select_best_product(
+            candidates, item_name="卵", quantity_raw="1パック（10個）"
+        )
+        assert result is not None
+        assert "10個" in result.title
 
     def test_brand_rule_no_category_match(self, brand_rules: ShoppingRules) -> None:
         """Brand rules don't apply when item name doesn't match product pattern."""
