@@ -20,11 +20,12 @@ async def get_cookie_status() -> CookieStatus:
 
 
 @router.post("/cookies", response_model=CookieStatus)
-async def upload_cookies(request: CookieUploadRequest) -> CookieStatus:
+@limiter.limit("10/minute")
+async def upload_cookies(request: Request, upload_request: CookieUploadRequest) -> CookieStatus:
     """Upload Amazon session cookies."""
-    if not request.cookies:
+    if not upload_request.cookies:
         raise HTTPException(status_code=400, detail="Cookieが空です")
-    return await _cookie_manager.save_cookies(request.cookies)
+    return await _cookie_manager.save_cookies(upload_request.cookies)
 
 
 @router.post("/cookies/login", response_model=CookieStatus)
@@ -37,15 +38,24 @@ async def browser_login(request: Request) -> CookieStatus:
     """
     try:
         return await _cookie_manager.browser_login()
-    except TimeoutError as e:
-        raise HTTPException(status_code=408, detail=str(e))
-    except RuntimeError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except TimeoutError:
+        logger.warning("Browser login timed out")
+        raise HTTPException(
+            status_code=408,
+            detail="ログインがタイムアウトしました。もう一度お試しください。",
+        )
+    except RuntimeError:
+        logger.warning("Browser login failed with RuntimeError", exc_info=True)
+        raise HTTPException(
+            status_code=400,
+            detail="ブラウザを起動できませんでした。"
+            "対応ブラウザがインストールされているか確認してください。",
+        )
+    except Exception:
         logger.exception("Browser login failed")
         raise HTTPException(
             status_code=500,
-            detail=f"ブラウザログインに失敗しました: {e}",
+            detail="ブラウザログインに失敗しました。もう一度お試しください。",
         )
 
 

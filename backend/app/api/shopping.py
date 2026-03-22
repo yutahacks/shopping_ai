@@ -25,7 +25,7 @@ _history_repo = ShoppingHistoryRepository()
 class UpdateItemsRequest(BaseModel):
     """Request to replace all items in a plan."""
 
-    items: list[ShoppingItem] = Field(..., description="更新後のアイテムリスト")
+    items: list[ShoppingItem] = Field(..., description="更新後のアイテムリスト", max_length=200)
 
 
 class AddItemRequest(BaseModel):
@@ -66,6 +66,8 @@ async def create_shopping_plan(request: Request, plan_request: PlanRequest) -> S
 @router.get("/sessions", response_model=list[ShoppingSession])
 async def list_sessions(limit: int = 50, offset: int = 0) -> list[ShoppingSession]:
     """List past shopping sessions."""
+    limit = max(1, min(limit, 100))
+    offset = max(0, min(offset, 10000))
     return await _history_repo.list_sessions(limit=limit, offset=offset)
 
 

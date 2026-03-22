@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
-import type { FamilyMember, HouseholdProfile, CookieStatus } from "@/lib/types";
+import type { CookieEntry, FamilyMember, HouseholdProfile, CookieStatus } from "@/lib/types";
 
 type Step = "cookie" | "profile" | "rules" | "complete";
 
@@ -100,9 +100,21 @@ function CookieStep({ onNext }: { onNext: () => void }) {
   const handleUpload = async () => {
     setLoading(true);
     try {
-      const cookies = JSON.parse(cookieJson);
+      const cookies: unknown = JSON.parse(cookieJson);
       if (!Array.isArray(cookies)) throw new Error("配列形式で入力してください");
-      const newStatus = await api.settings.uploadCookies(cookies);
+      const isValid = cookies.every(
+        (c: unknown) =>
+          typeof c === "object" &&
+          c !== null &&
+          "name" in c &&
+          typeof (c as Record<string, unknown>).name === "string" &&
+          "value" in c &&
+          typeof (c as Record<string, unknown>).value === "string" &&
+          "domain" in c &&
+          typeof (c as Record<string, unknown>).domain === "string",
+      );
+      if (!isValid) throw new Error("各Cookieにname, value, domainが必要です");
+      const newStatus = await api.settings.uploadCookies(cookies as CookieEntry[]);
       setStatus(newStatus);
       setCookieJson("");
       toast.success("Cookieをアップロードしました");

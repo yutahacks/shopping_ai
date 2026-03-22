@@ -123,6 +123,10 @@ app.add_middleware(BearerAuthMiddleware)
 
 # CORS — use environment variable for origins
 cors_origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
+# Reject wildcard with credentials (security risk)
+if "*" in cors_origins:
+    cors_origins = ["http://localhost:3000"]
+    logger.warning("CORS_ORIGINS='*' is insecure with credentials. Falling back to localhost.")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,

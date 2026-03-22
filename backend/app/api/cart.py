@@ -45,8 +45,12 @@ async def execute_cart(request: Request, cart_request: CartExecutionRequest) -> 
 
 
 @router.get("/status/{execution_id}")
-async def stream_cart_status(execution_id: str) -> StreamingResponse:
+@limiter.limit("20/minute")
+async def stream_cart_status(request: Request, execution_id: str) -> StreamingResponse:
     """Stream cart execution status via Server-Sent Events."""
+    result = await _executor.get_result(execution_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="実行が見つかりません")
 
     async def event_generator() -> AsyncGenerator[str, None]:
         async for event in _executor.stream_status(execution_id):

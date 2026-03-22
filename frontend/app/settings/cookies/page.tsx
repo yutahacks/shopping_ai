@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
+import type { CookieEntry } from "@/lib/types";
 import type { CookieStatus } from "@/lib/types";
 
 export default function CookiesPage() {
@@ -37,9 +38,21 @@ export default function CookiesPage() {
   const handleUpload = async () => {
     setLoading(true);
     try {
-      const cookies = JSON.parse(cookieJson);
+      const cookies: unknown = JSON.parse(cookieJson);
       if (!Array.isArray(cookies)) throw new Error("配列形式で入力してください");
-      const newStatus = await api.settings.uploadCookies(cookies);
+      const isValid = cookies.every(
+        (c: unknown) =>
+          typeof c === "object" &&
+          c !== null &&
+          "name" in c &&
+          typeof (c as Record<string, unknown>).name === "string" &&
+          "value" in c &&
+          typeof (c as Record<string, unknown>).value === "string" &&
+          "domain" in c &&
+          typeof (c as Record<string, unknown>).domain === "string",
+      );
+      if (!isValid) throw new Error("各Cookieにname, value, domainが必要です");
+      const newStatus = await api.settings.uploadCookies(cookies as CookieEntry[]);
       setStatus(newStatus);
       setCookieJson("");
       toast.success("Cookieをアップロードしました");

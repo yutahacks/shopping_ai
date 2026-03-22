@@ -22,7 +22,13 @@ export function useCartExecution() {
       const eventSource = api.cart.streamStatus(initial.execution_id);
 
       eventSource.onmessage = (e: MessageEvent) => {
-        const event: CartStatusEvent = JSON.parse(e.data);
+        let event: CartStatusEvent;
+        try {
+          event = JSON.parse(e.data) as CartStatusEvent;
+        } catch {
+          console.error("Failed to parse SSE message:", e.data);
+          return;
+        }
         setEvents((prev) => [...prev, event]);
 
         if (event.event_type === "item_processed" && event.item_result) {
