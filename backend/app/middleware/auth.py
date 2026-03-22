@@ -50,10 +50,17 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
                 },
             )
 
-        # Validate Bearer token
+        # Validate Bearer token (header or query param for SSE/EventSource)
         auth_header = request.headers.get("Authorization", "")
-        if not auth_header.startswith("Bearer "):
-            logger.warning("Missing or invalid Authorization header from %s", request.client)
+        token: str | None = None
+        if auth_header.startswith("Bearer "):
+            token = auth_header.removeprefix("Bearer ").strip()
+        else:
+            # Fallback: accept token via query param (needed for EventSource/SSE)
+            token = request.query_params.get("token")
+
+        if not token:
+            logger.warning("Missing or invalid Authorization from %s", request.client)
             return JSONResponse(
                 status_code=401,
                 content={
@@ -62,7 +69,6 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
                 },
             )
 
-        token = auth_header.removeprefix("Bearer ").strip()
         if token != settings.api_secret_key:
             logger.warning("Invalid API token from %s", request.client)
             return JSONResponse(

@@ -93,8 +93,16 @@ export const api = {
         body: JSON.stringify(req),
       }),
 
-    streamStatus: (executionId: string): EventSource =>
-      new EventSource(`${BASE_URL}/api/cart/status/${executionId}`),
+    streamStatus: (executionId: string): EventSource => {
+      const url = new URL(`${BASE_URL}/api/cart/status/${executionId}`);
+      if (typeof window !== "undefined") {
+        const token = sessionStorage.getItem("api_secret_key");
+        if (token) {
+          url.searchParams.set("token", token);
+        }
+      }
+      return new EventSource(url.toString());
+    },
 
     getExecutions: (sessionId: string) =>
       fetchJSON<CartExecutionResult[]>(`/api/cart/executions/${sessionId}`),

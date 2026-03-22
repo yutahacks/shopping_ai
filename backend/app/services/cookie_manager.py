@@ -208,12 +208,29 @@ class CookieManagerService:
         return [CookieEntry.model_validate(c) for c in data]
 
     def _write_cookies(self, cookies: list[CookieEntry]) -> None:
+        import tempfile
+
         self._path.parent.mkdir(parents=True, exist_ok=True)
         data = [c.model_dump(exclude_none=True) for c in cookies]
-        with open(self._path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        # Restrict file permissions to owner only (sensitive data)
-        os.chmod(self._path, stat.S_IRUSR | stat.S_IWUSR)
+
+        # Atomic write: create temp file with restricted permissions, then move
+        fd = tempfile.NamedTemporaryFile(
+            mode="w",
+            dir=self._path.parent,
+            suffix=".tmp",
+            delete=False,
+            encoding="utf-8",
+        )
+        try:
+            tmp_path = Path(fd.name)
+            os.chmod(tmp_path, stat.S_IRUSR | stat.S_IWUSR)
+            json.dump(data, fd, ensure_ascii=False, indent=2)
+            fd.close()
+            tmp_path.replace(self._path)
+        except Exception:
+            fd.close()
+            Path(fd.name).unlink(missing_ok=True)
+            raise
 
     def _delete_cookies(self) -> None:
         if self._path.exists():
